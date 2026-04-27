@@ -1,0 +1,53 @@
+body { font-family: 'Inter', system-ui, sans-serif; }
+
+/* Modal 底部滑出動畫 */
+.modal-overlay.open { display: flex !important; }
+
+.modal-sheet {
+  animation: slideUp 0.22s ease;
+}
+
+@keyframes slideUp {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+/* Desktop: modal 置中 */
+@media (min-width: 640px) {
+  .modal-overlay { align-items: center; }
+  .modal-sheet { border-radius: 1.5rem; }
+}
+
+/* 桌機雙欄 */
+@media (min-width: 768px) {
+  #main-container {
+    max-width: 900px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    padding-bottom: 2rem;
+  }
+  #main-container > header,
+  #members-bar,
+  #locked-banner { grid-column: 1 / -1; }
+  #main-container > nav { display: none !important; }
+  #pane-expense {
+    display: block !important;
+    border-right: 1px solid #f3f4f6;
+  }
+  #pane-settle { display: block !important; }
+  #btn-fab { right: calc(50vw + 1.5rem); }
+}
+
+/* 新增消費卡片 highlight */
+@keyframes cardHighlight {
+  0%   { background-color: #eff6ff; border-color: #bfdbfe; }
+  100% { background-color: #ffffff; border-color: #f3f4f6; }
+}
+.card-new { animation: cardHighlight 1.4s ease forwards; }
+
+/* 列印 */
+@media print {
+  nav, header, #pane-settle, #btn-fab,
+  .modal-overlay, .expense-card-actions { display: none !important; }
+  .tab-pane { display: block !important; }
+}
