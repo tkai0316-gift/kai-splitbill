@@ -157,6 +157,7 @@ modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 // ── 成員 + 身份 ──
 const IDENTITY_KEY = `splitbill_identity_${CODE}`;
 let myId = localStorage.getItem(IDENTITY_KEY) || null;
+const myName = () => group.members.find(m => m.id === myId)?.name ?? null;
 
 function hasMemberExpenses(id) {
   return group.expenses.some(e => e.payer_id === id || e.participant_ids.includes(id));
@@ -208,6 +209,7 @@ function renderMembers() {
         if (!confirm(`刪除「${member.name}」？`)) return;
         group.members = group.members.filter(m => m.id !== member.id);
         if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
+        group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
         await saveGroup(group);
         renderMembers();
         renderExpenseForm();
@@ -236,6 +238,7 @@ document.getElementById('btn-add-member').addEventListener('click', async () => 
   }
   if (group.members.some(m => m.name === name)) { alert(`「${name}」已存在`); return; }
   group.members.push({ id: uuid(), name, payment_info: '' });
+  group.last_action = { type: 'add_member', actor: myName(), target: name };
   await saveGroup(group);
   input.value = '';
   renderMembers();
@@ -422,8 +425,11 @@ document.getElementById('btn-add-expense').addEventListener('click', async () =>
   if (editingExpenseId) {
     const idx = group.expenses.findIndex(e => e.id === editingExpenseId);
     if (idx !== -1) group.expenses[idx] = { ...group.expenses[idx], ...expenseData };
+    group.last_action = { type: 'edit_expense', actor: myName(), title, amount };
   } else {
     group.expenses.push({ id: uuid(), ...expenseData, created_at: new Date().toISOString() });
+    const payer = group.members.find(m => m.id === payerId)?.name ?? null;
+    group.last_action = { type: 'add_expense', actor: payer, title, amount };
   }
 
   const highlightId = editingExpenseId ? null : group.expenses[group.expenses.length - 1].id;
@@ -521,6 +527,7 @@ function renderExpenseCards(highlightId = null) {
       if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async () => {
         if (!confirm(`確定刪除「${expense.title}」？`)) return;
         group.expenses = group.expenses.filter(e => e.id !== expense.id);
+        group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount };
         await saveGroup(group);
         renderExpenseCards();
         renderStatusCard();
@@ -647,7 +654,9 @@ function renderSettleResult(transfers) {
       </div>
     `;
     div.querySelector('.transfer-toggle').addEventListener('click', async () => {
-      if (group.paid_transfers[key]) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
+      const wasPaid = !!group.paid_transfers[key];
+      if (wasPaid) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
+      group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
       await saveGroup(group);
       renderSettleResult(calcSettlement());
     });
@@ -685,6 +694,7 @@ document.getElementById('btn-save-settlement').addEventListener('click', async (
     group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
   }
   group.locked = true;
+  group.last_action = { type: 'lock', actor: myName() };
   await saveGroup(group);
   applyLockState();
   renderSettlementHistory();
