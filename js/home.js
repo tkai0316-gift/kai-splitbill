@@ -5,17 +5,17 @@ const inputCode = document.getElementById('input-share-code');
 const btnCreate = document.getElementById('btn-create');
 const btnJoin   = document.getElementById('btn-join');
 
-btnCreate.addEventListener('click', () => {
+btnCreate.addEventListener('click', async () => {
   const name = inputName.value.trim();
   if (!name) { inputName.focus(); return; }
-  const group = createGroup(name);
+  const group = await createGroup(name);
   location.href = `group.html?code=${group.share_code}`;
 });
 
-btnJoin.addEventListener('click', () => {
+btnJoin.addEventListener('click', async () => {
   const code = inputCode.value.trim().toUpperCase();
   if (!code) { inputCode.focus(); return; }
-  const group = getGroup(code);
+  const group = await getGroup(code);
   if (!group) {
     alert('找不到此邀請碼，請確認後再試');
     return;

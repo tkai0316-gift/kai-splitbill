@@ -13,7 +13,7 @@ const params = new URLSearchParams(location.search);
 const CODE   = params.get('code')?.toUpperCase();
 if (!CODE) { location.href = 'index.html'; throw 0; }
 
-let group = getGroup(CODE);
+let group = await getGroup(CODE);
 if (!group) {
   alert('找不到群組，請確認連結是否正確');
   location.href = 'index.html';
@@ -33,9 +33,9 @@ function applyLockState() {
   renderSettleResult(calcSettlement());
 }
 
-document.getElementById('btn-unlock').addEventListener('click', () => {
+document.getElementById('btn-unlock').addEventListener('click', async () => {
   group.locked = false;
-  saveGroup(group);
+  await saveGroup(group);
   applyLockState();
 });
 
@@ -196,11 +196,11 @@ function renderMembers() {
       const del = document.createElement('button');
       del.className = `px-2 py-1 text-xs border-l transition ${isMe ? 'border-blue-500 text-blue-200 hover:text-white' : 'border-gray-200 text-gray-300 hover:text-red-400'}`;
       del.textContent = '×';
-      del.addEventListener('click', () => {
+      del.addEventListener('click', async () => {
         if (!confirm(`刪除「${member.name}」？`)) return;
         group.members = group.members.filter(m => m.id !== member.id);
         if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
-        saveGroup(group);
+        await saveGroup(group);
         renderMembers();
         renderExpenseForm();
         renderPaymentSettings();
@@ -218,7 +218,7 @@ function renderMembers() {
   }
 }
 
-document.getElementById('btn-add-member').addEventListener('click', () => {
+document.getElementById('btn-add-member').addEventListener('click', async () => {
   const input = document.getElementById('input-member-name');
   const name = input.value.trim();
   if (!name) {
@@ -228,7 +228,7 @@ document.getElementById('btn-add-member').addEventListener('click', () => {
   }
   if (group.members.some(m => m.name === name)) { alert(`「${name}」已存在`); return; }
   group.members.push({ id: uuid(), name, payment_info: '' });
-  saveGroup(group);
+  await saveGroup(group);
   input.value = '';
   renderMembers();
   renderExpenseForm();
@@ -387,7 +387,7 @@ document.getElementById('btn-split-custom').addEventListener('click', () => {
   renderCustomInputs();
 });
 
-document.getElementById('btn-add-expense').addEventListener('click', () => {
+document.getElementById('btn-add-expense').addEventListener('click', async () => {
   const title  = document.getElementById('input-title').value.trim();
   const amount = parseFloat(document.getElementById('input-amount').value);
   const date   = document.getElementById('input-date').value;
@@ -419,7 +419,7 @@ document.getElementById('btn-add-expense').addEventListener('click', () => {
   }
 
   const highlightId = editingExpenseId ? null : group.expenses[group.expenses.length - 1].id;
-  saveGroup(group);
+  await saveGroup(group);
   closeModal();
   renderExpenseCards(highlightId);
   renderStatusCard();
@@ -510,10 +510,10 @@ function renderExpenseCards(highlightId = null) {
       `;
 
       if (!group.locked) card.querySelector('.edit-btn').addEventListener('click', () => loadExpenseToForm(expense));
-      if (!group.locked) card.querySelector('.del-btn').addEventListener('click', () => {
+      if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async () => {
         if (!confirm(`確定刪除「${expense.title}」？`)) return;
         group.expenses = group.expenses.filter(e => e.id !== expense.id);
-        saveGroup(group);
+        await saveGroup(group);
         renderExpenseCards();
         renderStatusCard();
         renderSettleResult(calcSettlement());
@@ -638,9 +638,9 @@ function renderSettleResult(transfers) {
         <button class="transfer-toggle text-xs px-2.5 py-1 rounded-full border transition ${paid ? 'bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200' : 'border-emerald-400 text-emerald-600 hover:bg-emerald-100'}">${paid ? '撤銷' : '標記已付'}</button>
       </div>
     `;
-    div.querySelector('.transfer-toggle').addEventListener('click', () => {
+    div.querySelector('.transfer-toggle').addEventListener('click', async () => {
       if (group.paid_transfers[key]) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
-      saveGroup(group);
+      await saveGroup(group);
       renderSettleResult(calcSettlement());
     });
     container.appendChild(div);
@@ -670,14 +670,14 @@ function renderSettlementHistory() {
   });
 }
 
-document.getElementById('btn-save-settlement').addEventListener('click', () => {
+document.getElementById('btn-save-settlement').addEventListener('click', async () => {
   if (!confirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
   const transfers = calcSettlement();
   if (transfers.length) {
     group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
   }
   group.locked = true;
-  saveGroup(group);
+  await saveGroup(group);
   applyLockState();
   renderSettlementHistory();
 });
@@ -700,9 +700,9 @@ function renderPaymentSettings() {
     input.className = 'flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 transition';
     input.value = member.payment_info || '';
     input.placeholder = 'LINE Pay / 銀行帳號 / 街口';
-    input.addEventListener('blur', () => {
+    input.addEventListener('blur', async () => {
       member.payment_info = input.value.trim();
-      saveGroup(group);
+      await saveGroup(group);
       renderSettleResult(calcSettlement());
       renderStatusCard();
     });
