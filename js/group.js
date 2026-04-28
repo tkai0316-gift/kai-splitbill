@@ -125,14 +125,22 @@ function openModal() {
   if (!myId) {
     showIdentityPicker(() => {
       renderExpenseForm();
-      if (!editingExpenseId) document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+      if (!editingExpenseId) {
+        document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+        const ps = document.getElementById('select-payer');
+        if (ps.querySelector(`option[value="${myId}"]`)) ps.value = myId;
+      }
       modal.classList.add('open');
       setTimeout(() => document.getElementById('input-title').focus(), 100);
     });
     return;
   }
   renderExpenseForm();
-  if (!editingExpenseId) document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+  if (!editingExpenseId) {
+    document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+    const ps = document.getElementById('select-payer');
+    if (myId && ps.querySelector(`option[value="${myId}"]`)) ps.value = myId;
+  }
   modal.classList.add('open');
   setTimeout(() => document.getElementById('input-title').focus(), 100);
 }
