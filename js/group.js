@@ -39,10 +39,10 @@ document.getElementById('btn-unlock').addEventListener('click', async () => {
   applyLockState();
 });
 
-document.title = group.name;
+document.title = `${group.name} ｜ 帳務總覽`;
 const _nameEl = document.getElementById('group-name');
-_nameEl.textContent = group.name;
-_nameEl.style.fontSize = group.name.length <= 5 ? '1.25rem' : group.name.length <= 12 ? '1rem' : '0.875rem';
+_nameEl.textContent = `${group.name} ｜ 帳務總覽`;
+_nameEl.style.fontSize = group.name.length <= 5 ? '1.1rem' : group.name.length <= 12 ? '0.9rem' : '0.8rem';
 
 // ── 分享 ──
 const shareURL = `${location.origin}${location.pathname}?code=${CODE}`;
