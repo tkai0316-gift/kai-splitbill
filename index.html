@@ -42,6 +42,25 @@
       </button>
     </div>
 
+    <div class="flex items-center gap-4 px-10">
+      <div class="h-[1px] bg-slate-200 flex-1"></div>
+      <span class="text-[10px] font-black text-slate-300 uppercase tracking-[0.2em]">或</span>
+      <div class="h-[1px] bg-slate-200 flex-1"></div>
+    </div>
+
+    <div class="bg-white p-8 rounded-[2.5rem] shadow-2xl shadow-slate-200/70 border border-white transition-shadow hover:shadow-slate-900/5">
+      <div class="flex items-center gap-3 mb-5">
+        <div class="w-10 h-10 bg-slate-100 text-slate-500 rounded-xl flex items-center justify-center font-black shadow-inner">2</div>
+        <h2 class="text-xs font-black text-slate-400 uppercase tracking-widest">加入現有群組</h2>
+      </div>
+      <input type="text" id="input-share-code" placeholder="輸入邀請碼" maxlength="20"
+        class="w-full bg-slate-100 border-2 border-slate-100 rounded-2xl p-4 mb-5 focus:bg-white focus:border-blue-500 outline-none transition-all font-bold placeholder:font-medium placeholder:text-slate-300">
+      <button type="button" id="btn-join"
+        class="w-full bg-slate-950 hover:bg-slate-800 text-white font-black py-4 rounded-2xl shadow-xl shadow-slate-200 transition-all active:scale-95 flex items-center justify-center gap-2">
+        📥 進入群組
+      </button>
+    </div>
+
   </div>
 
   <footer class="absolute bottom-6 text-center text-[10px] font-medium text-slate-300 tracking-widest z-10">
