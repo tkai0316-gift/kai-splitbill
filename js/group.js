@@ -438,6 +438,7 @@ document.getElementById('btn-add-expense').addEventListener('click', async () =>
   renderExpenseCards(highlightId);
   renderStatusCard();
   renderSettleResult(calcSettlement());
+  renderPaymentSettings();
 });
 
 function clearExpenseForm() {
@@ -532,6 +533,7 @@ function renderExpenseCards(highlightId = null) {
         renderExpenseCards();
         renderStatusCard();
         renderSettleResult(calcSettlement());
+        renderPaymentSettings();
       });
 
       if (expense.id === highlightId) card.classList.add('card-new');
@@ -659,6 +661,7 @@ function renderSettleResult(transfers) {
       group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
       await saveGroup(group);
       renderSettleResult(calcSettlement());
+      renderPaymentSettings();
     });
     container.appendChild(div);
   });
@@ -707,12 +710,12 @@ function renderPaymentSettings() {
   if (!group.members.length) {
     container.innerHTML = `<p class="text-gray-300 text-sm">尚無成員</p>`; return;
   }
-  const creditorIds = [...new Set(calcSettlement().map(t => t.to_id))];
-  const creditors = group.members.filter(m => creditorIds.includes(m.id));
-  if (!creditors.length) {
-    container.innerHTML = `<p class="text-gray-300 text-sm">目前無人需要收款</p>`; return;
-  }
-  creditors.forEach(member => {
+  const transfers = calcSettlement();
+  const creditorIds = [...new Set(transfers.map(t => t.to_id))];
+  const targets = group.expenses.length && creditorIds.length
+    ? group.members.filter(m => creditorIds.includes(m.id))
+    : group.members;
+  targets.forEach(member => {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-3 py-2 border-b border-gray-50 last:border-0';
     const name = document.createElement('span');
