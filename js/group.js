@@ -63,12 +63,12 @@ async function copyToClipboard(text) {
 
 document.getElementById('btn-copy').addEventListener('click', async () => {
   const btn = document.getElementById('btn-copy');
-  const ok = await copyToClipboard(shareURL);
+  const ok = await copyToClipboard(CODE);
   if (ok) {
     btn.textContent = '已複製！';
-    setTimeout(() => { btn.textContent = '複製連結'; }, 2000);
+    setTimeout(() => { btn.textContent = '分享'; }, 2000);
   } else {
-    prompt('群組連結：', shareURL);
+    prompt('邀請碼：', CODE);
   }
 });
 
@@ -226,7 +226,6 @@ function renderMembers() {
     hint.textContent = '↑ 點選認領身份';
     chips.appendChild(hint);
   }
-  chips.classList.toggle('flex-1', group.members.length > 0);
 }
 
 document.getElementById('btn-add-member').addEventListener('click', async () => {

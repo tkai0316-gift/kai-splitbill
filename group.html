@@ -15,14 +15,15 @@
 
   <!-- Header -->
   <header class="sticky top-0 z-50 flex items-center gap-3 px-5 py-3.5 bg-white border-b border-gray-100">
+    <a href="index.html" class="text-blue-600 text-xl leading-none">←</a>
     <h1 id="group-name" class="flex-1 text-base font-bold text-gray-900 truncate">載入中...</h1>
-    <button type="button" id="btn-copy" class="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-full hover:bg-blue-50 transition">複製連結</button>
+    <button type="button" id="btn-copy" class="text-xs text-blue-600 border border-blue-200 px-3 py-1.5 rounded-full hover:bg-blue-50 transition">分享</button>
   </header>
 
   <!-- 成員橫排 -->
   <div id="members-bar" class="px-5 py-2.5 flex items-center gap-2 flex-wrap border-b border-gray-100 bg-white">
     <span class="text-xs text-gray-400 flex-shrink-0">成員</span>
-    <div id="members-chips" class="flex flex-wrap gap-1.5 min-w-0"></div>
+    <div id="members-chips" class="flex flex-wrap gap-1.5 flex-1 min-w-0"></div>
     <div id="member-input-area" class="flex items-center gap-1.5 flex-shrink-0">
       <input type="text" id="input-member-name" placeholder="新增成員" maxlength="20"
         class="w-24 text-xs px-3 py-1.5 bg-gray-50 border border-gray-200 rounded-full focus:outline-none focus:border-blue-400 transition">
