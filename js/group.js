@@ -63,12 +63,12 @@ async function copyToClipboard(text) {
 
 document.getElementById('btn-copy').addEventListener('click', async () => {
   const btn = document.getElementById('btn-copy');
-  const ok = await copyToClipboard(CODE);
+  const ok = await copyToClipboard(shareURL);
   if (ok) {
     btn.textContent = '已複製！';
-    setTimeout(() => { btn.textContent = '分享'; }, 2000);
+    setTimeout(() => { btn.textContent = '複製連結'; }, 2000);
   } else {
-    prompt('邀請碼：', CODE);
+    prompt('群組連結：', shareURL);
   }
 });
 
