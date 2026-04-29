@@ -707,7 +707,12 @@ function renderPaymentSettings() {
   if (!group.members.length) {
     container.innerHTML = `<p class="text-gray-300 text-sm">尚無成員</p>`; return;
   }
-  group.members.forEach(member => {
+  const creditorIds = [...new Set(calcSettlement().map(t => t.to_id))];
+  const creditors = group.members.filter(m => creditorIds.includes(m.id));
+  if (!creditors.length) {
+    container.innerHTML = `<p class="text-gray-300 text-sm">目前無人需要收款</p>`; return;
+  }
+  creditors.forEach(member => {
     const row = document.createElement('div');
     row.className = 'flex items-center gap-3 py-2 border-b border-gray-50 last:border-0';
     const name = document.createElement('span');
