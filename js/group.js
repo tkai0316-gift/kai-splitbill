@@ -226,6 +226,7 @@ function renderMembers() {
     hint.textContent = '↑ 點選認領身份';
     chips.appendChild(hint);
   }
+  chips.classList.toggle('flex-1', group.members.length > 0);
 }
 
 document.getElementById('btn-add-member').addEventListener('click', async () => {
