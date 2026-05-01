@@ -15,7 +15,7 @@ export function uuid() {
 
 export async function getGroup(code) {
   const { data } = await supabase
-    .from('groups')
+    .from('splitbill_groups')
     .select('data')
     .eq('share_code', code)
     .single();
@@ -23,7 +23,7 @@ export async function getGroup(code) {
 }
 
 export async function saveGroup(group) {
-  await supabase.from('groups').upsert({
+  await supabase.from('splitbill_groups').upsert({
     share_code: group.share_code,
     data: group,
     updated_at: new Date().toISOString()
