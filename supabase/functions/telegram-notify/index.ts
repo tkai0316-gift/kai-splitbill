@@ -18,8 +18,22 @@ function groupLink(code: string, name: string) {
   return `[${name}](${BASE_URL}/group.html?code=${code})`;
 }
 
+const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
+const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
+
+async function isSplitbillEnabled(): Promise<boolean> {
+  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return true;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/bot_settings?key=eq.module_splitbill&select=value`, {
+    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+  });
+  const rows = await res.json();
+  return rows?.[0]?.value !== 'false';
+}
+
 Deno.serve(async (req) => {
   try {
+    if (!await isSplitbillEnabled()) return new Response('ok');
+
     const { type, table, record, old_record } = await req.json();
     if (table !== 'splitbill_groups') return new Response('ok');
 
