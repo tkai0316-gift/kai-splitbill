@@ -569,12 +569,9 @@ function calcSettlement() {
         if (bal[id] !== undefined) bal[id] -= Number(e.custom_amounts[id] || 0);
       });
     } else {
-      const total = Math.round(Number(e.amount)); // 四捨五入至整數元
-      const n = e.participant_ids.length;
-      const share = Math.floor(total / n);        // 每人整數份額
-      const rem = total - share * n;              // 餘數
-      e.participant_ids.forEach((id, i) => {
-        if (bal[id] !== undefined) bal[id] -= (share + (i < rem ? 1 : 0));
+      const share = Number(e.amount) / e.participant_ids.length;
+      e.participant_ids.forEach(id => {
+        if (bal[id] !== undefined) bal[id] -= share;
       });
     }
   });
