@@ -266,11 +266,7 @@ function renderStatusCard() {
       if (e.split_type === 'custom' && e.custom_amounts) {
         return s + Number(e.custom_amounts[myId] || 0);
       }
-      const total = Math.round(Number(e.amount));
-      const n = e.participant_ids.length;
-      const share = Math.floor(total / n);
-      const rem = e.payer_id === myId ? total - share * n : 0;
-      return s + share + rem;
+      return s + Number(e.amount) / e.participant_ids.length;
     }, 0);
     document.getElementById('my-paid').textContent = `$${fmt(myPaid)}`;
     document.getElementById('my-owed').textContent = `$${fmt(myOwed)}`;
