@@ -269,7 +269,7 @@ function renderStatusCard() {
       return s + Number(e.amount) / e.participant_ids.length;
     }, 0);
     document.getElementById('my-paid').textContent = `$${fmt(myPaid)}`;
-    document.getElementById('my-owed').textContent = `$${fmt(myOwed)}`;
+    document.getElementById('my-owed').textContent = `$${fmt(Math.round(myOwed))}`;
     statusMy.classList.remove('hidden');
     statusMy.classList.add('flex');
   } else {
