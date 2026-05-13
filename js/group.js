@@ -573,10 +573,9 @@ function calcSettlement() {
       const n = e.participant_ids.length;
       const share = Math.floor(total / n);        // 每人整數份額
       const rem = total - share * n;              // 餘數
-      e.participant_ids.forEach(id => {
-        if (bal[id] !== undefined) bal[id] -= share;
+      e.participant_ids.forEach((id, i) => {
+        if (bal[id] !== undefined) bal[id] -= (share + (i < rem ? 1 : 0));
       });
-      if (bal[e.payer_id] !== undefined) bal[e.payer_id] -= rem; // 付款人吸收餘數
     }
   });
   Object.keys(bal).forEach(id => { bal[id] = Math.round(bal[id]); }); // 確保整數
