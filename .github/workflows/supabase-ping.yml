@@ -12,7 +12,7 @@ jobs:
       - name: Ping Supabase
         run: |
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
-            "$SUPABASE_URL/rest/v1/bot_settings?select=key&limit=1" \
+            "$SUPABASE_URL/rest/v1/splitbill_groups?select=share_code&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
             -H "Authorization: Bearer $SUPABASE_ANON_KEY")
           echo "Supabase ping status: $STATUS"
