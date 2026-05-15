@@ -1,12 +1,12 @@
 import { createGroup, getGroup } from './db.js';
 
 // 顯示最近開啟的群組
-;(function renderRecent() {
+function renderRecent() {
   const KEY = 'splitbill_recent';
   const list = JSON.parse(localStorage.getItem(KEY) || '[]');
-  if (!list.length) return;
   const container = document.getElementById('recent-groups');
   const listEl = document.getElementById('recent-list');
+  if (!list.length) { container.classList.add('hidden'); return; }
   container.classList.remove('hidden');
   listEl.innerHTML = list.map(g => `
     <a href="group.html?code=${g.code}"
@@ -14,7 +14,10 @@ import { createGroup, getGroup } from './db.js';
       <span class="font-bold text-slate-800 text-sm truncate">${g.name}</span>
       <span class="text-[10px] text-slate-400 font-mono ml-3 shrink-0">${g.code}</span>
     </a>`).join('');
-})();
+}
+
+renderRecent();
+window.addEventListener('pageshow', renderRecent);
 
 const inputName = document.getElementById('input-group-name');
 const inputCode = document.getElementById('input-share-code');
