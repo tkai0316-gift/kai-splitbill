@@ -23,6 +23,16 @@ if (!group) {
 if (!group.paid_transfers) group.paid_transfers = {};
 if (group.locked === undefined) group.locked = false;
 
+// 記錄最近開啟的群組
+;(function saveRecent() {
+  const KEY = 'splitbill_recent';
+  const item = { code: CODE, name: group.name, ts: Date.now() };
+  const list = JSON.parse(localStorage.getItem(KEY) || '[]')
+    .filter(g => g.code !== CODE);
+  list.unshift(item);
+  localStorage.setItem(KEY, JSON.stringify(list.slice(0, 5)));
+})();
+
 function applyLockState() {
   const locked = group.locked;
   document.getElementById('locked-banner').classList.toggle('hidden', !locked);
