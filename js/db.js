@@ -65,6 +65,10 @@ export async function createGroup(name) {
     locked: false,
     created_at: new Date().toISOString(),
   };
-  await saveGroup(group);
+  const { error } = await supabase
+    .from('splitbill_groups')
+    .insert({ share_code: code, data: group, updated_at: new Date().toISOString() });
+  if (error) throw error;
+  currentVersion = 0;
   return group;
 }
