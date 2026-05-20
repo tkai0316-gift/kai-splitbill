@@ -5,6 +5,16 @@ const supabase = createClient(
   'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImNiZHFseXByZWp6dm5kdmVzZnBhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY5MTExNDEsImV4cCI6MjA5MjQ4NzE0MX0.Ir5R3F_J7xe-biBB1Gai0Bdt6bUjUJo-ygRGCyyUnFA'
 );
 
+let currentVersion = 0;
+
+function showConflictToast() {
+  const el = document.createElement('div');
+  el.textContent = '資料已被他人更新，即將重新載入…';
+  el.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:8px;font-size:.85rem;z-index:9999;color:#fff;background:#dc2626;font-family:Outfit,sans-serif';
+  document.body.appendChild(el);
+  setTimeout(() => location.reload(), 2000);
+}
+
 export function uuid() {
   try { return crypto.randomUUID(); } catch (_) {}
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
@@ -16,18 +26,30 @@ export function uuid() {
 export async function getGroup(code) {
   const { data } = await supabase
     .from('splitbill_groups')
-    .select('data')
+    .select('data, version')
     .eq('share_code', code)
     .single();
+  if (data) currentVersion = data.version ?? 0;
   return data?.data ?? null;
 }
 
 export async function saveGroup(group) {
-  await supabase.from('splitbill_groups').upsert({
-    share_code: group.share_code,
-    data: group,
-    updated_at: new Date().toISOString()
-  });
+  const { data } = await supabase
+    .from('splitbill_groups')
+    .update({
+      data: group,
+      updated_at: new Date().toISOString(),
+      version: currentVersion + 1
+    })
+    .eq('share_code', group.share_code)
+    .eq('version', currentVersion)
+    .select('version');
+
+  if (!data?.length) {
+    showConflictToast();
+    return;
+  }
+  currentVersion = data[0].version;
 }
 
 export async function createGroup(name) {
