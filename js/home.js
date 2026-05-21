@@ -24,9 +24,13 @@ const inputCode = document.getElementById('input-share-code');
 const btnCreate = document.getElementById('btn-create');
 const btnJoin   = document.getElementById('btn-join');
 
+let _creating = false;
 btnCreate.addEventListener('click', async () => {
+  if (_creating) return;
   const name = inputName.value.trim();
   if (!name) { inputName.focus(); return; }
+  _creating = true;
+  btnCreate.disabled = true;
   const group = await createGroup(name);
   location.href = `group.html?code=${group.share_code}`;
 });
