@@ -72,3 +72,10 @@ export async function createGroup(name) {
   currentVersion = 0;
   return group;
 }
+
+export async function guardedAction(el, asyncFn) {
+  if (el?._busy) return
+  if (el) { el._busy = true; el.disabled = true }
+  try { await asyncFn() }
+  finally { if (el) { el._busy = false; el.disabled = false } }
+}

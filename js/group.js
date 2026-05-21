@@ -1,4 +1,4 @@
-import { getGroup, saveGroup, uuid } from './db.js';
+import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
@@ -43,10 +43,12 @@ function applyLockState() {
   renderSettleResult(calcSettlement());
 }
 
-document.getElementById('btn-unlock').addEventListener('click', async () => {
-  group.locked = false;
-  await saveGroup(group);
-  applyLockState();
+document.getElementById('btn-unlock').addEventListener('click', async e => {
+  await guardedAction(e.currentTarget, async () => {
+    group.locked = false;
+    await saveGroup(group);
+    applyLockState();
+  });
 });
 
 document.title = `${group.name} ｜ 帳務總覽`;
@@ -215,15 +217,17 @@ function renderMembers() {
       const del = document.createElement('button');
       del.className = `px-2 py-1 text-xs border-l transition ${isMe ? 'border-blue-500 text-blue-200 hover:text-white' : 'border-gray-200 text-gray-300 hover:text-red-400'}`;
       del.textContent = '×';
-      del.addEventListener('click', async () => {
-        if (!confirm(`刪除「${member.name}」？`)) return;
-        group.members = group.members.filter(m => m.id !== member.id);
-        if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
-        group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
-        await saveGroup(group);
-        renderMembers();
-        renderExpenseForm();
-        renderPaymentSettings();
+      del.addEventListener('click', async e => {
+        await guardedAction(e.currentTarget, async () => {
+          if (!confirm(`刪除「${member.name}」？`)) return;
+          group.members = group.members.filter(m => m.id !== member.id);
+          if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
+          group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
+          await saveGroup(group);
+          renderMembers();
+          renderExpenseForm();
+          renderPaymentSettings();
+        });
       });
       chip.appendChild(del);
     }
@@ -238,22 +242,24 @@ function renderMembers() {
   }
 }
 
-document.getElementById('btn-add-member').addEventListener('click', async () => {
-  const input = document.getElementById('input-member-name');
-  const name = input.value.trim();
-  if (!name) {
-    input.classList.add('!border-red-400');
-    setTimeout(() => input.classList.remove('!border-red-400'), 800);
-    input.focus(); return;
-  }
-  if (group.members.some(m => m.name === name)) { alert(`「${name}」已存在`); return; }
-  group.members.push({ id: uuid(), name, payment_info: '' });
-  group.last_action = { type: 'add_member', actor: myName(), target: name };
-  await saveGroup(group);
-  input.value = '';
-  renderMembers();
-  renderExpenseForm();
-  renderPaymentSettings();
+document.getElementById('btn-add-member').addEventListener('click', async e => {
+  await guardedAction(e.currentTarget, async () => {
+    const input = document.getElementById('input-member-name');
+    const name = input.value.trim();
+    if (!name) {
+      input.classList.add('!border-red-400');
+      setTimeout(() => input.classList.remove('!border-red-400'), 800);
+      input.focus(); return;
+    }
+    if (group.members.some(m => m.name === name)) { alert(`「${name}」已存在`); return; }
+    group.members.push({ id: uuid(), name, payment_info: '' });
+    group.last_action = { type: 'add_member', actor: myName(), target: name };
+    await saveGroup(group);
+    input.value = '';
+    renderMembers();
+    renderExpenseForm();
+    renderPaymentSettings();
+  });
 });
 
 imeEnter(document.getElementById('input-member-name'), () => document.getElementById('btn-add-member').click());
@@ -404,7 +410,8 @@ document.getElementById('btn-split-custom').addEventListener('click', () => {
   renderCustomInputs();
 });
 
-document.getElementById('btn-add-expense').addEventListener('click', async () => {
+document.getElementById('btn-add-expense').addEventListener('click', async e => {
+  await guardedAction(e.currentTarget, async () => {
   const title  = document.getElementById('input-title').value.trim();
   const amount = parseFloat(document.getElementById('input-amount').value);
   const date   = document.getElementById('input-date').value;
@@ -445,6 +452,7 @@ document.getElementById('btn-add-expense').addEventListener('click', async () =>
   renderStatusCard();
   renderSettleResult(calcSettlement());
   renderPaymentSettings();
+  });
 });
 
 function clearExpenseForm() {
@@ -531,15 +539,17 @@ function renderExpenseCards(highlightId = null) {
       `;
 
       if (!group.locked) card.querySelector('.edit-btn').addEventListener('click', () => loadExpenseToForm(expense));
-      if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async () => {
-        if (!confirm(`確定刪除「${expense.title}」？`)) return;
-        group.expenses = group.expenses.filter(e => e.id !== expense.id);
-        group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount };
-        await saveGroup(group);
-        renderExpenseCards();
-        renderStatusCard();
-        renderSettleResult(calcSettlement());
-        renderPaymentSettings();
+      if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async e => {
+        await guardedAction(e.currentTarget, async () => {
+          if (!confirm(`確定刪除「${expense.title}」？`)) return;
+          group.expenses = group.expenses.filter(e => e.id !== expense.id);
+          group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount };
+          await saveGroup(group);
+          renderExpenseCards();
+          renderStatusCard();
+          renderSettleResult(calcSettlement());
+          renderPaymentSettings();
+        });
       });
 
       if (expense.id === highlightId) card.classList.add('card-new');
@@ -692,17 +702,19 @@ function renderSettlementHistory() {
   });
 }
 
-document.getElementById('btn-save-settlement').addEventListener('click', async () => {
-  if (!confirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
-  const transfers = calcSettlement();
-  if (transfers.length) {
-    group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
-  }
-  group.locked = true;
-  group.last_action = { type: 'lock', actor: myName() };
-  await saveGroup(group);
-  applyLockState();
-  renderSettlementHistory();
+document.getElementById('btn-save-settlement').addEventListener('click', async e => {
+  await guardedAction(e.currentTarget, async () => {
+    if (!confirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
+    const transfers = calcSettlement();
+    if (transfers.length) {
+      group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
+    }
+    group.locked = true;
+    group.last_action = { type: 'lock', actor: myName() };
+    await saveGroup(group);
+    applyLockState();
+    renderSettlementHistory();
+  });
 });
 
 // ── 收款設定 ──
