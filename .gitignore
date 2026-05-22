@@ -3,3 +3,4 @@
 *.env
 .dev.vars
 supabase/.temp/
+CLAUDE.local.md
