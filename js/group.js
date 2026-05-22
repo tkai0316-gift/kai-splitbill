@@ -647,23 +647,6 @@ function renderExpenseCards(highlightId = null) {
     });
 }
 
-// ── 匯出 ──
-document.getElementById('btn-export-pdf').addEventListener('click', () => window.print());
-document.getElementById('btn-export-excel').addEventListener('click', () => {
-  const rows = [...group.expenses].sort((a, b) => b.date.localeCompare(a.date)).map(e => ({
-    日期: e.date,
-    項目: e.title,
-    金額: Number(e.amount),
-    付款人: group.members.find(m => m.id === e.payer_id)?.name ?? '?',
-    參與者: e.participant_ids.map(id => group.members.find(m => m.id === id)?.name ?? '?').join(', '),
-    人數: e.participant_ids.length,
-    每人均攤: e.split_type === 'custom' ? '自訂' : Number((e.amount / e.participant_ids.length).toFixed(2)),
-  }));
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rows), '消費明細');
-  XLSX.writeFile(wb, `${group.name}_分帳明細.xlsx`);
-});
-
 // ── 結算演算法 ──
 function calcSettlement() {
   const bal = {};

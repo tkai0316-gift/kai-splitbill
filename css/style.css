@@ -49,9 +49,3 @@ button, input, select, textarea, a { touch-action: manipulation; }
 }
 .card-new { animation: cardHighlight 1.4s ease forwards; }
 
-/* 列印 */
-@media print {
-  nav, header, #pane-settle, #btn-fab,
-  .modal-overlay, .expense-card-actions { display: none !important; }
-  .tab-pane { display: block !important; }
-}
