@@ -223,7 +223,6 @@ function renderMembers() {
       localStorage.setItem(IDENTITY_KEY, myId);
       renderMembers();
       renderStatusCard();
-      renderExpenseCards();
     });
     chip.appendChild(nameBtn);
 
@@ -324,6 +323,67 @@ function renderStatusCard() {
     statusMy.classList.remove('flex');
   }
 }
+
+// ── 個人消費明細 ──
+const modalStatement = document.getElementById('modal-statement');
+
+function openMyStatement() {
+  const me = group.members.find(m => m.id === myId);
+  if (!me) return;
+
+  document.getElementById('statement-title').textContent = `${me.name} 的消費明細`;
+
+  const myExpenses = [...group.expenses]
+    .filter(e => e.participant_ids.includes(myId))
+    .sort((a, b) => b.date.localeCompare(a.date));
+
+  let myPaid = 0, myOwed = 0;
+  const listEl = document.getElementById('statement-list');
+  listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-300 text-center py-4">尚無消費記錄</p>';
+
+  myExpenses.forEach(e => {
+    const share = e.split_type === 'custom' && e.custom_amounts
+      ? Number(e.custom_amounts[myId] || 0)
+      : Number(e.amount) / e.participant_ids.length;
+    const isPayer = e.payer_id === myId;
+    const payer = group.members.find(m => m.id === e.payer_id);
+    if (isPayer) myPaid += Number(e.amount);
+    myOwed += share;
+
+    const row = document.createElement('div');
+    row.className = 'flex items-center justify-between py-2.5 border-b border-gray-50';
+    row.innerHTML = `
+      <div class="min-w-0 flex-1">
+        <div class="text-sm font-medium text-gray-900 truncate">${esc(e.title)}</div>
+        <div class="text-xs text-gray-400">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
+      </div>
+      <div class="text-sm font-semibold text-gray-800 flex-shrink-0 ml-3">$${fmt(Math.round(share))}</div>
+    `;
+    listEl.appendChild(row);
+  });
+
+  const net = myPaid - myOwed;
+  document.getElementById('statement-footer').innerHTML = `
+    <span class="text-gray-400">已付 <span class="font-semibold text-gray-700">$${fmt(myPaid)}</span></span>
+    <span class="text-gray-400">應付 <span class="font-semibold text-gray-700">$${fmt(Math.round(myOwed))}</span></span>
+    <span class="${net >= 0 ? 'text-emerald-600' : 'text-red-500'} font-semibold">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `補 $${fmt(Math.round(-net))}`}</span>
+  `;
+
+  modalStatement.classList.remove('hidden');
+  modalStatement.classList.add('open');
+}
+
+document.getElementById('btn-my-statement').addEventListener('click', openMyStatement);
+document.getElementById('btn-statement-close').addEventListener('click', () => {
+  modalStatement.classList.remove('open');
+  modalStatement.classList.add('hidden');
+});
+modalStatement.addEventListener('click', e => {
+  if (e.target === modalStatement) {
+    modalStatement.classList.remove('open');
+    modalStatement.classList.add('hidden');
+  }
+});
 
 // ── 消費表單 ──
 function renderExpenseForm() {
@@ -562,14 +622,6 @@ function renderExpenseCards(highlightId = null) {
             <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(expense.amount)}</span>
           </div>
           <p class="text-sm text-gray-400">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
-          ${(() => {
-            if (!myId || !expense.participant_ids.includes(myId)) return '';
-            const myShare = expense.split_type === 'custom' && expense.custom_amounts
-              ? Number(expense.custom_amounts[myId] || 0)
-              : Number(expense.amount) / expense.participant_ids.length;
-            const isPayer = expense.payer_id === myId;
-            return `<p class="text-xs mt-0.5 ${isPayer ? 'text-emerald-600' : 'text-blue-500'}">我的份 $${fmt(Math.round(myShare))}${isPayer ? '（我墊付）' : ''}</p>`;
-          })()}
           ${!group.locked ? `<div class="expense-card-actions flex gap-2 mt-2">
             <button class="text-xs text-gray-400 hover:text-blue-600 transition edit-btn">編輯</button>
             <button class="text-xs text-gray-400 hover:text-red-500 transition del-btn">刪除</button>

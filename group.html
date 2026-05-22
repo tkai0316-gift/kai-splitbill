@@ -62,7 +62,7 @@
         </div>
 
         <!-- 我的概覽 -->
-        <div id="status-my" class="hidden gap-5 pb-3 mb-3 border-b border-emerald-100">
+        <div id="status-my" class="hidden gap-5 pb-3 mb-3 border-b border-emerald-100 items-end">
           <div>
             <div class="text-xs text-emerald-600 mb-0.5">我已付</div>
             <div class="text-base font-bold text-emerald-800" id="my-paid">—</div>
@@ -71,6 +71,7 @@
             <div class="text-xs text-emerald-600 mb-0.5">我應付</div>
             <div class="text-base font-bold text-emerald-800" id="my-owed">—</div>
           </div>
+          <button type="button" id="btn-my-statement" class="ml-auto text-xs text-emerald-600 border border-emerald-300 px-3 py-1.5 rounded-full hover:bg-emerald-100 transition">查看明細</button>
         </div>
 
       </div>
@@ -170,6 +171,18 @@
     <p class="text-base font-bold text-gray-900 text-center">你是哪位？</p>
     <p class="text-xs text-gray-400 text-center mt-1 mb-5">選擇後才能新增消費</p>
     <div id="identity-chips" class="flex flex-wrap gap-3 justify-center"></div>
+  </div>
+</div>
+
+<!-- Modal 個人消費明細 -->
+<div id="modal-statement" class="modal-overlay fixed inset-0 bg-black/40 z-50 hidden items-end justify-center">
+  <div class="modal-sheet bg-white w-full max-w-md rounded-t-3xl px-6 pt-5 pb-10 max-h-[88vh] overflow-y-auto">
+    <div class="flex items-center justify-between mb-4">
+      <span id="statement-title" class="text-lg font-bold text-gray-900"></span>
+      <button type="button" id="btn-statement-close" class="w-8 h-8 bg-gray-100 text-gray-500 rounded-full text-sm hover:bg-gray-200 transition flex items-center justify-center">✕</button>
+    </div>
+    <div id="statement-list" class="space-y-2 mb-4"></div>
+    <div id="statement-footer" class="border-t border-gray-100 pt-4 flex justify-between text-sm"></div>
   </div>
 </div>
 
