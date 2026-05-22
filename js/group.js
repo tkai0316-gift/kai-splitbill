@@ -256,7 +256,7 @@ function renderMembers() {
     badge.textContent = `+${hidden}`;
     badge.addEventListener('click', () => { membersExpanded = true; renderMembers(); });
     chips.appendChild(badge);
-  } else if (total > FOLD_THRESHOLD) {
+  } else if (total > FOLD_THRESHOLD && membersExpanded) {
     const badge = document.createElement('button');
     badge.className = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
     badge.textContent = '收起';
