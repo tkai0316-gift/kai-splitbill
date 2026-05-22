@@ -364,9 +364,8 @@ function openMyStatement() {
 
   const net = myPaid - myOwed;
   document.getElementById('statement-footer').innerHTML = `
-    <span class="text-gray-400">已付 <span class="font-semibold text-gray-700">$${fmt(myPaid)}</span></span>
-    <span class="text-gray-400">應付 <span class="font-semibold text-gray-700">$${fmt(Math.round(myOwed))}</span></span>
-    <span class="${net >= 0 ? 'text-emerald-600' : 'text-red-500'} font-semibold">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `補 $${fmt(Math.round(-net))}`}</span>
+    <span class="text-xs text-gray-400">淨額</span>
+    <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
   `;
 
   modalStatement.classList.remove('hidden');
