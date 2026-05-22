@@ -223,6 +223,7 @@ function renderMembers() {
       localStorage.setItem(IDENTITY_KEY, myId);
       renderMembers();
       renderStatusCard();
+      renderExpenseCards();
     });
     chip.appendChild(nameBtn);
 
@@ -561,6 +562,14 @@ function renderExpenseCards(highlightId = null) {
             <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(expense.amount)}</span>
           </div>
           <p class="text-sm text-gray-400">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
+          ${(() => {
+            if (!myId || !expense.participant_ids.includes(myId)) return '';
+            const myShare = expense.split_type === 'custom' && expense.custom_amounts
+              ? Number(expense.custom_amounts[myId] || 0)
+              : Number(expense.amount) / expense.participant_ids.length;
+            const isPayer = expense.payer_id === myId;
+            return `<p class="text-xs mt-0.5 ${isPayer ? 'text-emerald-600' : 'text-blue-500'}">我的份 $${fmt(Math.round(myShare))}${isPayer ? '（我墊付）' : ''}</p>`;
+          })()}
           ${!group.locked ? `<div class="expense-card-actions flex gap-2 mt-2">
             <button class="text-xs text-gray-400 hover:text-blue-600 transition edit-btn">編輯</button>
             <button class="text-xs text-gray-400 hover:text-red-500 transition del-btn">刪除</button>
