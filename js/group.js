@@ -170,6 +170,8 @@ modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
 const IDENTITY_KEY = `splitbill_identity_${CODE}`;
 let myId = localStorage.getItem(IDENTITY_KEY) || null;
 const myName = () => group.members.find(m => m.id === myId)?.name ?? null;
+const FOLD_THRESHOLD = 6;
+let membersExpanded = false;
 
 function hasMemberExpenses(id) {
   return group.expenses.some(e => e.payer_id === id || e.participant_ids.includes(id));
@@ -193,7 +195,18 @@ function renderMembers() {
   const chips = document.getElementById('members-chips');
   chips.innerHTML = '';
 
-  group.members.forEach(member => {
+  const total = group.members.length;
+  const needsFold = !membersExpanded && total > FOLD_THRESHOLD;
+
+  let visible = group.members;
+  if (needsFold) {
+    const base = group.members.slice(0, FOLD_THRESHOLD);
+    const myMember = myId && !base.find(m => m.id === myId)
+      ? group.members.find(m => m.id === myId) : null;
+    visible = myMember ? [...group.members.slice(0, FOLD_THRESHOLD - 1), myMember] : base;
+  }
+
+  visible.forEach(member => {
     const isMe = member.id === myId;
     const chip = document.createElement('div');
     chip.className = `inline-flex items-center rounded-full overflow-hidden border transition ${
@@ -224,6 +237,7 @@ function renderMembers() {
           if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
           group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
           await saveGroup(group);
+          membersExpanded = false;
           renderMembers();
           renderExpenseForm();
           renderPaymentSettings();
@@ -233,6 +247,21 @@ function renderMembers() {
     }
     chips.appendChild(chip);
   });
+
+  if (needsFold) {
+    const hidden = total - visible.length;
+    const badge = document.createElement('button');
+    badge.className = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
+    badge.textContent = `+${hidden}`;
+    badge.addEventListener('click', () => { membersExpanded = true; renderMembers(); });
+    chips.appendChild(badge);
+  } else if (total > FOLD_THRESHOLD) {
+    const badge = document.createElement('button');
+    badge.className = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
+    badge.textContent = '收起';
+    badge.addEventListener('click', () => { membersExpanded = false; renderMembers(); });
+    chips.appendChild(badge);
+  }
 
   if (!myId && group.members.length) {
     const hint = document.createElement('span');
@@ -256,6 +285,7 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
     group.last_action = { type: 'add_member', actor: myName(), target: name };
     await saveGroup(group);
     input.value = '';
+    membersExpanded = false;
     renderMembers();
     renderExpenseForm();
     renderPaymentSettings();
