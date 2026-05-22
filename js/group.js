@@ -196,7 +196,7 @@ function renderMembers() {
   chips.innerHTML = '';
 
   const total = group.members.length;
-  const needsFold = !membersExpanded && total > FOLD_THRESHOLD;
+  const needsFold = !membersExpanded && total > FOLD_THRESHOLD && window.innerWidth < 768;
 
   let visible = group.members;
   if (needsFold) {
