@@ -16,7 +16,13 @@ if (!CODE) { location.href = 'index.html'; throw 0; }
 let group = await getGroup(CODE);
 if (!group) {
   alert('找不到群組，請確認連結是否正確');
-  location.href = 'index.html';
+  document.body.innerHTML = `
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:1.5rem;background:#f9fafb;font-family:Inter,sans-serif">
+      <div style="font-size:3rem;margin-bottom:1rem">🔍</div>
+      <h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin-bottom:0.5rem">找不到群組</h2>
+      <p style="font-size:0.875rem;color:#6b7280">此連結對應的群組已不存在或已被刪除</p>
+      <p style="font-size:0.75rem;color:#9ca3af;margin-top:0.75rem;font-family:monospace">${esc(CODE)}</p>
+    </div>`;
   throw 0;
 }
 
