@@ -1,5 +1,7 @@
 import { createGroup, getGroup } from './db.js';
 
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
 // 顯示最近開啟的群組
 function renderRecent() {
   const KEY = 'splitbill_recent';
@@ -9,10 +11,10 @@ function renderRecent() {
   if (!list.length) { container.classList.add('hidden'); return; }
   container.classList.remove('hidden');
   listEl.innerHTML = list.map(g => `
-    <a href="group.html?code=${g.code}"
+    <a href="group.html?code=${esc(g.code)}"
        class="flex items-center justify-between bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm hover:border-blue-200 hover:shadow-blue-50 transition-all active:scale-95">
-      <span class="font-bold text-slate-800 text-sm truncate">${g.name}</span>
-      <span class="text-[10px] text-slate-400 font-mono ml-3 shrink-0">${g.code}</span>
+      <span class="font-bold text-slate-800 text-sm truncate">${esc(g.name)}</span>
+      <span class="text-[10px] text-slate-400 font-mono ml-3 shrink-0">${esc(g.code)}</span>
     </a>`).join('');
 }
 
