@@ -133,7 +133,9 @@ function showIdentityPicker(callback) {
   modalIdentity.classList.add('open');
 }
 
-modalIdentity.addEventListener('click', e => { if (e.target === modalIdentity) modalIdentity.classList.remove('open'); });
+let _identityModalDown = false;
+modalIdentity.addEventListener('pointerdown', e => { _identityModalDown = e.target === modalIdentity; });
+modalIdentity.addEventListener('click', e => { if (e.target === modalIdentity && _identityModalDown) modalIdentity.classList.remove('open'); });
 
 function openModal() {
   if (!group.members.length) {
@@ -170,7 +172,9 @@ function closeModal() {
 
 fab.addEventListener('click', openModal);
 document.getElementById('btn-modal-close').addEventListener('click', closeModal);
-modal.addEventListener('click', e => { if (e.target === modal) closeModal(); });
+let _groupModalDown = false;
+modal.addEventListener('pointerdown', e => { _groupModalDown = e.target === modal; });
+modal.addEventListener('click', e => { if (e.target === modal && _groupModalDown) closeModal(); });
 
 // ── 成員 + 身份 ──
 const IDENTITY_KEY = `splitbill_identity_${CODE}`;
