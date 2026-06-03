@@ -4,3 +4,4 @@
 .dev.vars
 supabase/.temp/
 CLAUDE.local.md
+node_modules/

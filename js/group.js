@@ -69,7 +69,7 @@ async function copyToClipboard(text) {
   try {
     await navigator.clipboard.writeText(text);
     return true;
-  } catch (_) {}
+  } catch (_) { /* noop */ }
   const el = Object.assign(document.createElement('textarea'), { value: text });
   el.style.cssText = 'position:fixed;opacity:0';
   document.body.appendChild(el);
