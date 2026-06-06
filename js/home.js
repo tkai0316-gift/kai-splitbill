@@ -14,7 +14,10 @@ function renderRecent() {
     <a href="group.html?code=${esc(g.code)}"
        class="flex items-center justify-between bg-white border border-slate-100 rounded-2xl px-5 py-3.5 shadow-sm hover:border-blue-200 hover:shadow-blue-50 transition-all active:scale-95">
       <span class="font-bold text-slate-800 text-sm truncate">${esc(g.name)}</span>
-      <span class="text-[10px] text-slate-400 font-mono ml-3 shrink-0">${esc(g.code)}</span>
+      <div class="flex items-center gap-2 shrink-0 ml-3">
+        <span class="text-[10px] text-slate-400 font-mono">${esc(g.code)}</span>
+        <svg class="w-4 h-4 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"/></svg>
+      </div>
     </a>`).join('');
 }
 
