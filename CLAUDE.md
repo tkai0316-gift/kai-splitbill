@@ -8,9 +8,8 @@
 - 設計優先：Mobile-first
 
 ## XSS 防護
-- `esc()` 目前在 `home.js` / `group.js` 各自定義（無 utils.js）
-- 新增模組時應先建立 `utils.js` 集中定義並 export，不再另起一份
-- `href` 動態插值目前用 `esc()` 處理 query param，可接受；若未來有外部 URL 插值需補 `safeUrl()`
+- `esc()` / `safeUrl()` 已集中在 `utils.js` 定義並 export（2026-06-01 資安修補），各模組 import，禁止 local 重複定義
+- `href` 動態插值必須套 `safeUrl()`
 
 ## 安全
 - 前端直接用 anon key 打 Supabase，防線全靠 RLS，新增 table 必設 RLS
