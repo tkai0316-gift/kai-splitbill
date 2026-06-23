@@ -351,14 +351,19 @@ function openMyStatement() {
     .filter(e => e.payer_id === myId)
     .reduce((s, e) => s + Number(e.amount), 0);
   let myOwed = 0;
+  let paidInList = 0;
   const listEl = document.getElementById('statement-list');
   listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-300 text-center py-4">尚無消費記錄</p>';
 
   myExpenses.forEach(e => {
-    const share = e.split_type === 'custom' && e.custom_amounts
-      ? Number(e.custom_amounts[myId] || 0)
-      : Number(e.amount) / e.participant_ids.length;
+    const rawShare = e.split_type === 'custom' && e.custom_amounts ? e.custom_amounts[myId] : undefined;
+    if (e.split_type === 'custom' && e.custom_amounts && rawShare === undefined)
+      console.warn('[splitbill] custom_amounts missing key:', myId, e.title);
+    const share = rawShare !== undefined
+      ? Number(rawShare)
+      : (e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0);
     const isPayer = e.payer_id === myId;
+    if (isPayer) paidInList += Number(e.amount);
     const payer = group.members.find(m => m.id === e.payer_id);
     myOwed += share;
 
@@ -374,10 +379,14 @@ function openMyStatement() {
     listEl.appendChild(row);
   });
 
+  const paidForOthers = myPaid - paidInList;
   const net = myPaid - myOwed;
   document.getElementById('statement-footer').innerHTML = `
-    <span class="text-xs text-gray-400">淨額</span>
-    <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
+    ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-400 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
+    <div class="flex justify-between items-center">
+      <span class="text-xs text-gray-400">淨額</span>
+      <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
+    </div>
   `;
 
   modalStatement.classList.remove('hidden');
