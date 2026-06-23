@@ -36,8 +36,15 @@ btnCreate.addEventListener('click', async () => {
   if (!name) { inputName.focus(); return; }
   _creating = true;
   btnCreate.disabled = true;
-  const group = await createGroup(name);
-  location.href = `group.html?code=${group.share_code}`;
+  try {
+    const group = await createGroup(name);
+    location.href = `group.html?code=${group.share_code}`;
+  } catch {
+    alert('建立失敗，請再試一次');
+  } finally {
+    _creating = false;
+    btnCreate.disabled = false;
+  }
 });
 
 btnJoin.addEventListener('click', async () => {

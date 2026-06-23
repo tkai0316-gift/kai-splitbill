@@ -701,6 +701,13 @@ function calcSettlement() {
 function renderSettleResult(transfers) {
   const container = document.getElementById('settle-result');
   container.innerHTML = '';
+  // 清除帳目金額變動後殘留的孤兒 key
+  const validKeys = new Set(transfers.map(t => `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`));
+  const stale = Object.keys(group.paid_transfers || {}).filter(k => !validKeys.has(k));
+  if (stale.length) {
+    stale.forEach(k => delete group.paid_transfers[k]);
+    saveGroup(group);
+  }
   const btn = document.getElementById('btn-save-settlement');
 
   if (!group.expenses.length) {
