@@ -382,10 +382,12 @@ function openMyStatement() {
   const paidForOthers = myPaid - paidInList;
   const net = myPaid - myOwed;
   document.getElementById('statement-footer').innerHTML = `
-    ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-400 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
-    <div class="flex justify-between items-center w-full">
-      <span class="text-xs text-gray-400">淨額</span>
-      <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
+    <div class="w-full">
+      ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-400 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
+      <div class="flex justify-between items-center">
+        <span class="text-xs text-gray-400">淨額</span>
+        <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
+      </div>
     </div>
   `;
 
