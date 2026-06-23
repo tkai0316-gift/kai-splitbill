@@ -674,7 +674,7 @@ function calcSettlement() {
         if (bal[id] !== undefined) bal[id] -= Number(e.custom_amounts[id] || 0);
       });
     } else {
-      const share = Number(e.amount) / e.participant_ids.length;
+      const share = e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0;
       e.participant_ids.forEach(id => {
         if (bal[id] !== undefined) bal[id] -= share;
       });
@@ -836,8 +836,11 @@ function renderPaymentSettings() {
     input.className = 'flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 transition';
     input.value = member.payment_info || '';
     input.placeholder = 'LINE Pay / 銀行帳號 / 街口';
+    const _origPaymentInfo = member.payment_info || '';
     input.addEventListener('blur', async () => {
-      member.payment_info = input.value.trim();
+      const newVal = input.value.trim();
+      if (newVal === _origPaymentInfo) return;
+      member.payment_info = newVal;
       await saveGroup(group);
       renderSettleResult(calcSettlement());
       renderStatusCard();
