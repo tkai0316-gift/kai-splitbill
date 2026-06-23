@@ -347,7 +347,10 @@ function openMyStatement() {
     .filter(e => e.participant_ids.includes(myId))
     .sort((a, b) => b.date.localeCompare(a.date));
 
-  let myPaid = 0, myOwed = 0;
+  const myPaid = group.expenses
+    .filter(e => e.payer_id === myId)
+    .reduce((s, e) => s + Number(e.amount), 0);
+  let myOwed = 0;
   const listEl = document.getElementById('statement-list');
   listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-300 text-center py-4">尚無消費記錄</p>';
 
@@ -357,7 +360,6 @@ function openMyStatement() {
       : Number(e.amount) / e.participant_ids.length;
     const isPayer = e.payer_id === myId;
     const payer = group.members.find(m => m.id === e.payer_id);
-    if (isPayer) myPaid += Number(e.amount);
     myOwed += share;
 
     const row = document.createElement('div');
