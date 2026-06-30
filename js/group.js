@@ -6,11 +6,10 @@ const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>
 async function fetchExchangeRate(currency) {
   if (!currency || currency === 'TWD') return 1;
   try {
-    const cur = currency.toLowerCase();
-    const res  = await fetch(`https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@latest/v1/currencies/${cur}.min.json`);
+    const res  = await fetch(`https://open.er-api.com/v6/latest/${currency.toUpperCase()}`);
     if (!res.ok) return null;
     const data = await res.json();
-    return data[cur]?.twd ?? null;
+    return data.rates?.TWD ?? null;
   } catch { return null; }
 }
 
