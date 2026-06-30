@@ -760,7 +760,7 @@ function renderExpenseCards(highlightId = null) {
             <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(Math.round(Number(expense.amount) * (Number(expense.exchange_rate) || 1)))}</span>
           </div>
           <p class="text-sm text-gray-400">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
-          ${expense.currency && expense.currency !== 'TWD' ? `<p class="text-xs text-blue-500 mt-0.5">${esc(expense.currency)} ${fmt(expense.amount)}（匯率 ${expense.exchange_rate}）</p>` : ''}
+          ${expense.currency && expense.currency !== 'TWD' ? `<p class="text-xs text-blue-500 mt-0.5">${esc(expense.currency)} ${fmt(expense.amount)}（匯率 ${Number(expense.exchange_rate).toFixed(4)}）</p>` : ''}
           ${!group.locked ? `<div class="expense-card-actions flex gap-1 mt-2">
             <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition edit-btn" aria-label="編輯">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
