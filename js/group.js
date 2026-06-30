@@ -51,7 +51,7 @@ window.onCurrencyChange = async function() {
   const rate = await fetchExchangeRate(cur);
   spinner.classList.add('hidden');
   if (rate !== null) {
-    rateInput.value = rate;
+    rateInput.value = Number(rate).toFixed(4);
   } else {
     rateInput.value = '';
     rateInput.placeholder = '查無匯率，請手動填寫';
@@ -406,21 +406,22 @@ function openMyStatement() {
 
   const myPaid = group.expenses
     .filter(e => e.payer_id === myId)
-    .reduce((s, e) => s + Number(e.amount), 0);
+    .reduce((s, e) => s + Number(e.amount) * (Number(e.exchange_rate) || 1), 0);
   let myOwed = 0;
   let paidInList = 0;
   const listEl = document.getElementById('statement-list');
   listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-300 text-center py-4">尚無消費記錄</p>';
 
   myExpenses.forEach(e => {
+    const rate = Number(e.exchange_rate) || 1;
     const rawShare = e.split_type === 'custom' && e.custom_amounts ? e.custom_amounts[myId] : undefined;
     if (e.split_type === 'custom' && e.custom_amounts && rawShare === undefined)
       console.warn('[splitbill] custom_amounts missing key:', myId, e.title);
     const share = rawShare !== undefined
-      ? Number(rawShare)
-      : (e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0);
+      ? Number(rawShare) * rate
+      : (e.participant_ids.length ? Number(e.amount) * rate / e.participant_ids.length : 0);
     const isPayer = e.payer_id === myId;
-    if (isPayer) paidInList += Number(e.amount);
+    if (isPayer) paidInList += Number(e.amount) * rate;
     const payer = group.members.find(m => m.id === e.payer_id);
     myOwed += share;
 
@@ -698,7 +699,7 @@ function loadExpenseToForm(expense) {
   }
   if (cur !== 'TWD') {
     document.getElementById('rate-label').textContent = `1 ${cur} =`;
-    document.getElementById('input-rate').value = expense.exchange_rate || '';
+    document.getElementById('input-rate').value = expense.exchange_rate ? Number(expense.exchange_rate).toFixed(4) : '';
     document.getElementById('exchange-rate-row').classList.remove('hidden');
     updateTwdPreview();
   } else {
