@@ -130,8 +130,33 @@
 
     <input type="text" id="input-title" placeholder="消費項目"
       class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition">
-    <input type="number" id="input-amount" placeholder="金額" min="0" max="9999999" step="0.01"
-      class="w-full mt-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition">
+    <div class="flex gap-2 mt-2.5">
+      <input type="number" id="input-amount" placeholder="金額" min="0" max="9999999" step="0.01"
+        class="flex-1 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition">
+      <select id="input-currency" onchange="onCurrencyChange()"
+        class="px-3 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm font-medium text-gray-700 focus:outline-none focus:border-blue-400 transition cursor-pointer">
+        <option value="TWD">TWD</option>
+        <option value="USD">USD</option>
+        <option value="EUR">EUR</option>
+        <option value="JPY">JPY</option>
+        <option value="KRW">KRW</option>
+        <option value="OTHER">其他…</option>
+      </select>
+    </div>
+    <input type="text" id="input-currency-other" placeholder="幣別代碼，如 MYR" maxlength="4"
+      class="hidden w-full mt-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition uppercase">
+    <div id="exchange-rate-row" class="hidden mt-2 bg-blue-50 rounded-2xl px-4 py-3">
+      <div class="flex items-center gap-2">
+        <span id="rate-label" class="text-xs text-blue-600 whitespace-nowrap">1 USD =</span>
+        <input type="number" id="input-rate" step="0.0001" placeholder="匯率"
+          class="w-24 px-2 py-1 bg-white border border-blue-200 rounded-lg text-sm text-center font-mono focus:outline-none focus:border-blue-400 transition">
+        <span class="text-xs text-blue-600">TWD</span>
+        <span id="rate-loading" class="hidden ml-auto">
+          <svg class="w-3.5 h-3.5 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/><path fill="currentColor" class="opacity-75" d="M4 12a8 8 0 018-8v8z"/></svg>
+        </span>
+      </div>
+      <p class="text-right mt-1.5 text-xs text-gray-400">≈ <span id="twd-preview" class="font-semibold text-blue-700">NT$ —</span></p>
+    </div>
     <input type="date" id="input-date"
       class="w-full mt-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition">
 

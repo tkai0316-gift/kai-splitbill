@@ -2,6 +2,63 @@ import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+// ── 多幣別 ──
+async function fetchExchangeRate(currency) {
+  if (!currency || currency === 'TWD') return 1;
+  try {
+    const res = await fetch(`https://api.frankfurter.app/latest?from=${currency}&to=TWD`);
+    if (!res.ok) return null;
+    const data = await res.json();
+    return data.rates?.TWD ?? null;
+  } catch { return null; }
+}
+
+function getCurrency() {
+  const sel = document.getElementById('input-currency').value;
+  if (sel === 'OTHER') return document.getElementById('input-currency-other').value.trim().toUpperCase();
+  return sel;
+}
+
+function getTwdAmount() {
+  const amount = parseFloat(document.getElementById('input-amount').value) || 0;
+  const rate   = parseFloat(document.getElementById('input-rate').value) || 1;
+  const cur    = getCurrency();
+  return cur === 'TWD' ? amount : amount * rate;
+}
+
+function updateTwdPreview() {
+  const twd = getTwdAmount();
+  document.getElementById('twd-preview').textContent = twd > 0 ? `NT$ ${fmt(twd)}` : 'NT$ —';
+}
+
+window.onCurrencyChange = async function() {
+  const sel = document.getElementById('input-currency').value;
+  const otherEl   = document.getElementById('input-currency-other');
+  const rateRow   = document.getElementById('exchange-rate-row');
+  const rateLabel = document.getElementById('rate-label');
+  const rateInput = document.getElementById('input-rate');
+  const spinner   = document.getElementById('rate-loading');
+
+  otherEl.classList.toggle('hidden', sel !== 'OTHER');
+  if (sel === 'TWD') { rateRow.classList.add('hidden'); return; }
+  rateRow.classList.remove('hidden');
+
+  const cur = sel === 'OTHER' ? '' : sel;
+  if (!cur) { rateInput.value = ''; updateTwdPreview(); return; }
+
+  rateLabel.textContent = `1 ${cur} =`;
+  spinner.classList.remove('hidden');
+  const rate = await fetchExchangeRate(cur);
+  spinner.classList.add('hidden');
+  if (rate !== null) {
+    rateInput.value = rate;
+  } else {
+    rateInput.value = '';
+    rateInput.placeholder = '查無匯率，請手動填寫';
+  }
+  updateTwdPreview();
+};
+
 function imeEnter(el, fn) {
   let c = false;
   el.addEventListener('compositionstart', () => { c = true; });
@@ -13,7 +70,7 @@ const params = new URLSearchParams(location.search);
 const CODE   = params.get('code')?.toUpperCase();
 if (!CODE) { location.href = 'index.html'; throw 0; }
 
-let group = await getGroup(CODE);
+const group = await getGroup(CODE);
 if (!group) {
   document.body.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:1.5rem;background:#f9fafb;font-family:Inter,sans-serif">
@@ -310,20 +367,21 @@ function fmt(n) {
 
 // ── 狀態卡 ──
 function renderStatusCard() {
-  const total = group.expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  document.getElementById('total-amount').textContent = `$${fmt(total)}`;
+  const total = group.expenses.reduce((sum, e) => sum + Number(e.amount) * (Number(e.exchange_rate) || 1), 0);
+  document.getElementById('total-amount').textContent = `$${fmt(Math.round(total))}`;
   document.getElementById('expense-count').textContent = `${group.expenses.length} 筆`;
 
   const statusMy = document.getElementById('status-my');
   if (myId) {
-    const myPaid = group.expenses.filter(e => e.payer_id === myId).reduce((s, e) => s + Number(e.amount), 0);
+    const myPaid = group.expenses.filter(e => e.payer_id === myId).reduce((s, e) => s + Number(e.amount) * (Number(e.exchange_rate) || 1), 0);
     const myOwed = group.expenses.filter(e => e.participant_ids.includes(myId)).reduce((s, e) => {
+      const twdAmt = Number(e.amount) * (Number(e.exchange_rate) || 1);
       if (e.split_type === 'custom' && e.custom_amounts) {
-        return s + Number(e.custom_amounts[myId] || 0);
+        return s + Number(e.custom_amounts[myId] || 0) * (Number(e.exchange_rate) || 1);
       }
-      return s + Number(e.amount) / e.participant_ids.length;
+      return s + twdAmt / e.participant_ids.length;
     }, 0);
-    document.getElementById('my-paid').textContent = `$${fmt(myPaid)}`;
+    document.getElementById('my-paid').textContent = `$${fmt(Math.round(myPaid))}`;
     document.getElementById('my-owed').textContent = `$${fmt(Math.round(myOwed))}`;
     statusMy.classList.remove('hidden');
     statusMy.classList.add('flex');
@@ -451,7 +509,35 @@ function renderExpenseForm() {
 ['input-title', 'input-amount', 'input-date'].forEach(id => {
   imeEnter(document.getElementById(id), () => document.getElementById('btn-add-expense').click());
 });
-document.getElementById('input-amount').addEventListener('input', () => { if (splitMode === 'custom') updateCustomHint(); });
+document.getElementById('input-amount').addEventListener('input', () => {
+  updateTwdPreview();
+  if (splitMode === 'custom') updateCustomHint();
+});
+document.getElementById('input-rate').addEventListener('input', updateTwdPreview);
+
+let _otherCurrencyTimer = null;
+document.getElementById('input-currency-other').addEventListener('input', e => {
+  const val = e.target.value.trim().toUpperCase();
+  clearTimeout(_otherCurrencyTimer);
+  if (val.length < 3) return;
+  const rateLabel = document.getElementById('rate-label');
+  const spinner   = document.getElementById('rate-loading');
+  const rateInput = document.getElementById('input-rate');
+  rateLabel.textContent = `1 ${val} =`;
+  _otherCurrencyTimer = setTimeout(async () => {
+    spinner.classList.remove('hidden');
+    const rate = await fetchExchangeRate(val);
+    spinner.classList.add('hidden');
+    if (rate !== null) {
+      rateInput.value = rate;
+      rateInput.placeholder = '匯率';
+    } else {
+      rateInput.value = '';
+      rateInput.placeholder = '查無匯率，請手動填寫';
+    }
+    updateTwdPreview();
+  }, 600);
+});
 
 document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
 
@@ -546,7 +632,11 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
     inputs.forEach(i => { custom_amounts[i.dataset.memberId] = parseFloat(i.value) || 0; });
   }
 
-  const expenseData = { title, amount, date, payer_id: payerId, participant_ids: participantIds, split_type: splitMode, custom_amounts };
+  const currency      = getCurrency();
+  const exchange_rate = currency === 'TWD' ? 1 : (parseFloat(document.getElementById('input-rate').value) || 1);
+  if (currency !== 'TWD' && !document.getElementById('input-rate').value) { alert('請填寫匯率'); document.getElementById('input-rate').focus(); return; }
+
+  const expenseData = { title, amount, currency, exchange_rate, date, payer_id: payerId, participant_ids: participantIds, split_type: splitMode, custom_amounts };
   if (editingExpenseId) {
     const idx = group.expenses.findIndex(e => e.id === editingExpenseId);
     if (idx !== -1) group.expenses[idx] = { ...group.expenses[idx], ...expenseData };
@@ -579,6 +669,11 @@ function clearExpenseForm() {
   document.getElementById('btn-split-equal').className = 'px-3 py-1.5 bg-blue-600 text-white transition';
   document.getElementById('btn-split-custom').className = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
   renderCustomInputs();
+  document.getElementById('input-currency').value = 'TWD';
+  document.getElementById('input-currency-other').classList.add('hidden');
+  document.getElementById('exchange-rate-row').classList.add('hidden');
+  document.getElementById('input-rate').value = '';
+  document.getElementById('twd-preview').textContent = 'NT$ —';
   document.getElementById('modal-title').textContent = '新增消費';
   document.getElementById('btn-add-expense').textContent = '新增消費';
 }
@@ -587,6 +682,28 @@ function loadExpenseToForm(expense) {
   document.getElementById('input-title').value = expense.title;
   document.getElementById('input-amount').value = expense.amount;
   document.getElementById('input-date').value = expense.date;
+
+  // 幣別載入
+  const cur = expense.currency || 'TWD';
+  const sel = document.getElementById('input-currency');
+  const predefined = ['TWD','USD','EUR','JPY','KRW'];
+  if (predefined.includes(cur)) {
+    sel.value = cur;
+    document.getElementById('input-currency-other').classList.add('hidden');
+  } else {
+    sel.value = 'OTHER';
+    const otherEl = document.getElementById('input-currency-other');
+    otherEl.value = cur;
+    otherEl.classList.remove('hidden');
+  }
+  if (cur !== 'TWD') {
+    document.getElementById('rate-label').textContent = `1 ${cur} =`;
+    document.getElementById('input-rate').value = expense.exchange_rate || '';
+    document.getElementById('exchange-rate-row').classList.remove('hidden');
+    updateTwdPreview();
+  } else {
+    document.getElementById('exchange-rate-row').classList.add('hidden');
+  }
   document.getElementById('select-payer').value = expense.payer_id;
   document.querySelectorAll('#participant-checkboxes input').forEach(cb => {
     cb.checked = expense.participant_ids.includes(cb.value);
@@ -640,9 +757,10 @@ function renderExpenseCards(highlightId = null) {
         <div class="flex-1 min-w-0">
           <div class="flex justify-between items-baseline mb-0.5">
             <h4 class="font-semibold text-gray-950 text-base truncate pr-2">${esc(expense.title)}</h4>
-            <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(expense.amount)}</span>
+            <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(Math.round(Number(expense.amount) * (Number(expense.exchange_rate) || 1)))}</span>
           </div>
           <p class="text-sm text-gray-400">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
+          ${expense.currency && expense.currency !== 'TWD' ? `<p class="text-xs text-blue-500 mt-0.5">${esc(expense.currency)} ${fmt(expense.amount)}（匯率 ${expense.exchange_rate}）</p>` : ''}
           ${!group.locked ? `<div class="expense-card-actions flex gap-1 mt-2">
             <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition edit-btn" aria-label="編輯">
               <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/></svg>
@@ -678,13 +796,15 @@ function calcSettlement() {
   const bal = {};
   group.members.forEach(m => { bal[m.id] = 0; });
   group.expenses.forEach(e => {
-    if (bal[e.payer_id] !== undefined) bal[e.payer_id] += Number(e.amount);
+    const twdAmt = Number(e.amount) * (Number(e.exchange_rate) || 1);
+    if (bal[e.payer_id] !== undefined) bal[e.payer_id] += twdAmt;
     if (e.split_type === 'custom' && e.custom_amounts) {
+      const rate = Number(e.exchange_rate) || 1;
       e.participant_ids.forEach(id => {
-        if (bal[id] !== undefined) bal[id] -= Number(e.custom_amounts[id] || 0);
+        if (bal[id] !== undefined) bal[id] -= Number(e.custom_amounts[id] || 0) * rate;
       });
     } else {
-      const share = e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0;
+      const share = e.participant_ids.length ? twdAmt / e.participant_ids.length : 0;
       e.participant_ids.forEach(id => {
         if (bal[id] !== undefined) bal[id] -= share;
       });
