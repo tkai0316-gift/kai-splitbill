@@ -3,6 +3,13 @@ import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // ── 多幣別 ──
+const CURRENCIES = [
+  'TWD','USD','EUR','JPY','KRW','GBP','AUD','CAD','CHF','HKD',
+  'SGD','NZD','SEK','NOK','DKK','CNY','MYR','THB','IDR','PHP',
+  'VND','INR','AED','SAR','TRY','ZAR','BRL','MXN','CZK','HUF',
+  'PLN','ILS','CLP','COP','PEN',
+];
+
 async function fetchExchangeRate(currency) {
   if (!currency || currency === 'TWD') return 1;
   try {
@@ -14,9 +21,7 @@ async function fetchExchangeRate(currency) {
 }
 
 function getCurrency() {
-  const sel = document.getElementById('input-currency').value;
-  if (sel === 'OTHER') return document.getElementById('input-currency-other').value.trim().toUpperCase();
-  return sel;
+  return document.getElementById('input-currency').value.trim().toUpperCase();
 }
 
 function getTwdAmount() {
@@ -31,33 +36,54 @@ function updateTwdPreview() {
   document.getElementById('twd-preview').textContent = twd > 0 ? `NT$ ${fmt(twd)}` : 'NT$ —';
 }
 
-window.onCurrencyChange = async function() {
-  const sel = document.getElementById('input-currency').value;
-  const otherEl   = document.getElementById('input-currency-other');
+async function selectCurrency(code) {
+  const input    = document.getElementById('input-currency');
+  const dropdown = document.getElementById('currency-dropdown');
+  input.value = code;
+  dropdown.classList.add('hidden');
+
   const rateRow   = document.getElementById('exchange-rate-row');
   const rateLabel = document.getElementById('rate-label');
   const rateInput = document.getElementById('input-rate');
   const spinner   = document.getElementById('rate-loading');
 
-  otherEl.classList.toggle('hidden', sel !== 'OTHER');
-  if (sel === 'TWD') { rateRow.classList.add('hidden'); return; }
+  if (code === 'TWD') {
+    rateRow.classList.add('hidden');
+    rateInput.value = '';
+    updateTwdPreview();
+    return;
+  }
   rateRow.classList.remove('hidden');
-
-  const cur = sel === 'OTHER' ? '' : sel;
-  if (!cur) { rateInput.value = ''; updateTwdPreview(); return; }
-
-  rateLabel.textContent = `1 ${cur} =`;
+  rateLabel.textContent = `1 ${code} =`;
   spinner.classList.remove('hidden');
-  const rate = await fetchExchangeRate(cur);
+  const rate = await fetchExchangeRate(code);
   spinner.classList.add('hidden');
   if (rate !== null) {
     rateInput.value = Number(rate).toFixed(4);
+    rateInput.placeholder = '匯率';
   } else {
     rateInput.value = '';
     rateInput.placeholder = '查無匯率，請手動填寫';
   }
   updateTwdPreview();
-};
+}
+
+function showCurrencyDropdown(query) {
+  const dropdown = document.getElementById('currency-dropdown');
+  const q = query.trim().toUpperCase();
+  if (!q) { dropdown.classList.add('hidden'); return; }
+  const matches = CURRENCIES.filter(c => c.startsWith(q));
+  if (!matches.length) { dropdown.classList.add('hidden'); return; }
+  dropdown.replaceChildren(...matches.map(c => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.dataset.code = c;
+    btn.className = 'w-full text-left px-3 py-2 text-sm font-medium text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition';
+    btn.textContent = c;
+    return btn;
+  }));
+  dropdown.classList.remove('hidden');
+}
 
 function imeEnter(el, fn) {
   let c = false;
@@ -516,28 +542,37 @@ document.getElementById('input-amount').addEventListener('input', () => {
 });
 document.getElementById('input-rate').addEventListener('input', updateTwdPreview);
 
-let _otherCurrencyTimer = null;
-document.getElementById('input-currency-other').addEventListener('input', e => {
-  const val = e.target.value.trim().toUpperCase();
-  clearTimeout(_otherCurrencyTimer);
-  if (val.length < 3) return;
-  const rateLabel = document.getElementById('rate-label');
-  const spinner   = document.getElementById('rate-loading');
-  const rateInput = document.getElementById('input-rate');
-  rateLabel.textContent = `1 ${val} =`;
-  _otherCurrencyTimer = setTimeout(async () => {
-    spinner.classList.remove('hidden');
-    const rate = await fetchExchangeRate(val);
-    spinner.classList.add('hidden');
-    if (rate !== null) {
-      rateInput.value = rate;
-      rateInput.placeholder = '匯率';
-    } else {
-      rateInput.value = '';
-      rateInput.placeholder = '查無匯率，請手動填寫';
-    }
-    updateTwdPreview();
-  }, 600);
+// ── 幣別 combobox ──
+const currencyInput    = document.getElementById('input-currency');
+const currencyDropdown = document.getElementById('currency-dropdown');
+
+currencyInput.value = 'TWD';
+
+currencyInput.addEventListener('input', e => {
+  showCurrencyDropdown(e.target.value);
+});
+
+currencyInput.addEventListener('focus', e => {
+  showCurrencyDropdown(e.target.value);
+});
+
+currencyInput.addEventListener('blur', () => {
+  // 延遲讓 dropdown button 的 click 能先觸發
+  setTimeout(() => currencyDropdown.classList.add('hidden'), 150);
+});
+
+currencyDropdown.addEventListener('click', e => {
+  const btn = e.target.closest('[data-code]');
+  if (!btn) return;
+  selectCurrency(btn.dataset.code);
+});
+
+let _currencyRateTimer = null;
+currencyInput.addEventListener('change', () => {
+  const val = currencyInput.value.trim().toUpperCase();
+  if (!val || val === getCurrency()) return;
+  clearTimeout(_currencyRateTimer);
+  _currencyRateTimer = setTimeout(() => selectCurrency(val), 400);
 });
 
 document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
@@ -671,7 +706,6 @@ function clearExpenseForm() {
   document.getElementById('btn-split-custom').className = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
   renderCustomInputs();
   document.getElementById('input-currency').value = 'TWD';
-  document.getElementById('input-currency-other').classList.add('hidden');
   document.getElementById('exchange-rate-row').classList.add('hidden');
   document.getElementById('input-rate').value = '';
   document.getElementById('twd-preview').textContent = 'NT$ —';
@@ -686,17 +720,7 @@ function loadExpenseToForm(expense) {
 
   // 幣別載入
   const cur = expense.currency || 'TWD';
-  const sel = document.getElementById('input-currency');
-  const predefined = ['TWD','USD','EUR','JPY','KRW'];
-  if (predefined.includes(cur)) {
-    sel.value = cur;
-    document.getElementById('input-currency-other').classList.add('hidden');
-  } else {
-    sel.value = 'OTHER';
-    const otherEl = document.getElementById('input-currency-other');
-    otherEl.value = cur;
-    otherEl.classList.remove('hidden');
-  }
+  document.getElementById('input-currency').value = cur;
   if (cur !== 'TWD') {
     document.getElementById('rate-label').textContent = `1 ${cur} =`;
     document.getElementById('input-rate').value = expense.exchange_rate ? Number(expense.exchange_rate).toFixed(4) : '';
