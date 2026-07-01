@@ -386,6 +386,11 @@ function renderMembers() {
       del.textContent = '×';
       del.addEventListener('click', async e => {
         await guardedAction(e.currentTarget, async () => {
+          if (hasMemberExpenses(member.id)) {
+            await showAlert(`「${member.name}」已有消費記錄，無法刪除`);
+            renderMembers();
+            return;
+          }
           if (!await showConfirm(`刪除「${member.name}」？`)) return;
           group.members = group.members.filter(m => m.id !== member.id);
           if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
@@ -507,11 +512,12 @@ function openMyStatement() {
 
   myExpenses.forEach(e => {
     const rate = Number(e.exchange_rate) || 1;
-    const rawShare = e.split_type === 'custom' && e.custom_amounts ? e.custom_amounts[myId] : undefined;
-    if (e.split_type === 'custom' && e.custom_amounts && rawShare === undefined)
+    const isCustom = e.split_type === 'custom' && e.custom_amounts;
+    const rawShare = isCustom ? e.custom_amounts[myId] : undefined;
+    if (isCustom && rawShare === undefined)
       console.warn('[splitbill] custom_amounts missing key:', myId, e.title);
-    const shareOrig = rawShare !== undefined
-      ? Number(rawShare)
+    const shareOrig = isCustom
+      ? Number(rawShare ?? 0)
       : (e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0);
     const share = shareOrig * rate;
     const isPayer = e.payer_id === myId;
@@ -729,6 +735,8 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
     if (inputs.some(i => (parseFloat(i.value) || 0) < 0)) { await showAlert('自訂金額不可為負數'); return; }
     const sum = inputs.reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
     if (Math.round(Math.abs(sum - amount) * 100) > 0) { await showAlert('自訂金額合計須等於總金額'); return; }
+    const zeroNames = inputs.filter(i => !(parseFloat(i.value) > 0)).map(i => group.members.find(m => m.id === i.dataset.memberId)?.name).filter(Boolean);
+    if (zeroNames.length && !await showConfirm(`${zeroNames.join('、')} 的份額為 $0，仍列為參與者。確認繼續？`)) return;
     custom_amounts = {};
     inputs.forEach(i => { custom_amounts[i.dataset.memberId] = parseFloat(i.value) || 0; });
   }
@@ -936,7 +944,7 @@ function renderSettleResult(transfers) {
   const stale = Object.keys(group.paid_transfers || {}).filter(k => !validKeys.has(k));
   if (stale.length) {
     stale.forEach(k => delete group.paid_transfers[k]);
-    saveGroup(group);
+    saveGroup(group).catch(() => {});
   }
   const btn = document.getElementById('btn-save-settlement');
 
