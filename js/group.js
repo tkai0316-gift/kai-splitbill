@@ -93,6 +93,8 @@ window.onCurrencyChange = async function() {
     rateRow.classList.remove('hidden');
     rateInput.value = '';
     updateTwdPreview();
+    if (window.matchMedia('(pointer: fine)').matches)
+      document.getElementById('input-currency-other').focus();
     return;
   }
   if (sel === 'TWD') { rateRow.classList.add('hidden'); return; }
