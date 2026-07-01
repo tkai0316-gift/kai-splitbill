@@ -143,8 +143,12 @@
         <option value="OTHER">其他…</option>
       </select>
     </div>
-    <input type="text" id="input-currency-other" placeholder="幣別代碼，如 MYR" maxlength="4"
-      class="hidden w-full mt-2 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition uppercase">
+    <div id="currency-other-wrap" class="hidden relative mt-2">
+      <input type="text" id="input-currency-other" placeholder="輸入幣別代碼，如 MYR" maxlength="6" autocomplete="off"
+        class="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition uppercase">
+      <div id="currency-other-dropdown"
+        class="hidden absolute left-0 right-0 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg z-50 max-h-44 overflow-y-auto"></div>
+    </div>
     <div id="exchange-rate-row" class="hidden mt-2 bg-blue-50 rounded-2xl px-4 py-3">
       <div class="flex items-center gap-2">
         <span id="rate-label" class="text-xs text-blue-600 whitespace-nowrap">1 USD =</span>
