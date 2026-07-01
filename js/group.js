@@ -405,13 +405,13 @@ function renderMembers() {
   if (needsFold) {
     const hidden = total - visible.length;
     const badge = document.createElement('button');
-    badge.className = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
+    badge.className = CLS_FOLD_BADGE;
     badge.textContent = `+${hidden}`;
     badge.addEventListener('click', () => { membersExpanded = true; renderMembers(); });
     chips.appendChild(badge);
   } else if (total > FOLD_THRESHOLD && membersExpanded) {
     const badge = document.createElement('button');
-    badge.className = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
+    badge.className = CLS_FOLD_BADGE;
     badge.textContent = '收起';
     badge.addEventListener('click', () => { membersExpanded = false; renderMembers(); });
     chips.appendChild(badge);
@@ -452,6 +452,11 @@ imeEnter(document.getElementById('input-member-name'), () => document.getElement
 function fmt(n) {
   return Number(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
+
+// ── 樣式常數 ──
+const CLS_SPLIT_ACTIVE   = CLS_SPLIT_ACTIVE;
+const CLS_SPLIT_INACTIVE = CLS_SPLIT_INACTIVE;
+const CLS_FOLD_BADGE     = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
 
 // ── 狀態卡 ──
 function renderStatusCard() {
@@ -692,15 +697,15 @@ function renderCustomInputs(prevAmounts = {}) {
 
 document.getElementById('btn-split-equal').addEventListener('click', () => {
   splitMode = 'equal';
-  document.getElementById('btn-split-equal').className = 'px-3 py-1.5 bg-blue-600 text-white transition';
-  document.getElementById('btn-split-custom').className = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
+  document.getElementById('btn-split-equal').className = CLS_SPLIT_ACTIVE;
+  document.getElementById('btn-split-custom').className = CLS_SPLIT_INACTIVE;
   renderCustomInputs();
 });
 
 document.getElementById('btn-split-custom').addEventListener('click', () => {
   splitMode = 'custom';
-  document.getElementById('btn-split-equal').className = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
-  document.getElementById('btn-split-custom').className = 'px-3 py-1.5 bg-blue-600 text-white transition';
+  document.getElementById('btn-split-equal').className = CLS_SPLIT_INACTIVE;
+  document.getElementById('btn-split-custom').className = CLS_SPLIT_ACTIVE;
   renderCustomInputs();
 });
 
@@ -762,8 +767,8 @@ function clearExpenseForm() {
   document.querySelectorAll('#participant-checkboxes input').forEach(cb => cb.checked = true);
   editingExpenseId = null;
   splitMode = 'equal';
-  document.getElementById('btn-split-equal').className = 'px-3 py-1.5 bg-blue-600 text-white transition';
-  document.getElementById('btn-split-custom').className = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
+  document.getElementById('btn-split-equal').className = CLS_SPLIT_ACTIVE;
+  document.getElementById('btn-split-custom').className = CLS_SPLIT_INACTIVE;
   renderCustomInputs();
   document.getElementById('input-currency').value = 'TWD';
   document.getElementById('currency-other-wrap').classList.add('hidden');
@@ -805,11 +810,11 @@ function loadExpenseToForm(expense) {
   });
   splitMode = expense.split_type === 'custom' ? 'custom' : 'equal';
   document.getElementById('btn-split-equal').className = splitMode === 'equal'
-    ? 'px-3 py-1.5 bg-blue-600 text-white transition'
-    : 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
+    ? CLS_SPLIT_ACTIVE
+    : CLS_SPLIT_INACTIVE;
   document.getElementById('btn-split-custom').className = splitMode === 'custom'
-    ? 'px-3 py-1.5 bg-blue-600 text-white transition'
-    : 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
+    ? CLS_SPLIT_ACTIVE
+    : CLS_SPLIT_INACTIVE;
   renderCustomInputs(expense.custom_amounts || {});
   editingExpenseId = expense.id;
   document.getElementById('modal-title').textContent = '編輯消費';
@@ -1058,7 +1063,7 @@ function renderPaymentSettings() {
     name.textContent = member.name;
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 transition';
+    input.className = 'flex-1 text-sm px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 focus:bg-white transition';
     input.value = member.payment_info || '';
     input.placeholder = 'LINE Pay / 銀行帳號 / 街口';
     const _origPaymentInfo = member.payment_info || '';
