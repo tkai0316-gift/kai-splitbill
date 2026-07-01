@@ -1,5 +1,20 @@
 import { createGroup, getGroup } from './db.js';
 
+function showAlert(msg) {
+  return new Promise(resolve => {
+    document.getElementById('modal-alert-msg').textContent = msg;
+    const overlay = document.getElementById('modal-alert');
+    overlay.classList.add('open');
+    const btn = document.getElementById('modal-alert-ok');
+    const handler = () => {
+      overlay.classList.remove('open');
+      btn.removeEventListener('click', handler);
+      resolve();
+    };
+    btn.addEventListener('click', handler);
+  });
+}
+
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
 // 顯示最近開啟的群組
@@ -40,7 +55,7 @@ btnCreate.addEventListener('click', async () => {
     const group = await createGroup(name);
     location.href = `group.html?code=${group.share_code}`;
   } catch {
-    alert('建立失敗，請再試一次');
+    await showAlert('建立失敗，請再試一次');
   } finally {
     _creating = false;
     btnCreate.disabled = false;
@@ -52,7 +67,7 @@ btnJoin.addEventListener('click', async () => {
   if (!code) { inputCode.focus(); return; }
   const group = await getGroup(code);
   if (!group) {
-    alert('找不到此邀請碼，請確認後再試');
+    await showAlert('找不到此邀請碼，請確認後再試');
     return;
   }
   location.href = `group.html?code=${code}`;

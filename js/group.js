@@ -111,6 +111,41 @@ window.onCurrencyChange = async function() {
   updateTwdPreview();
 };
 
+function showAlert(msg) {
+  return new Promise(resolve => {
+    document.getElementById('modal-alert-msg').textContent = msg;
+    const overlay = document.getElementById('modal-alert');
+    overlay.classList.add('open');
+    const btn = document.getElementById('modal-alert-ok');
+    const handler = () => {
+      overlay.classList.remove('open');
+      btn.removeEventListener('click', handler);
+      resolve();
+    };
+    btn.addEventListener('click', handler);
+  });
+}
+
+function showConfirm(msg) {
+  return new Promise(resolve => {
+    document.getElementById('modal-confirm-msg').textContent = msg;
+    const overlay   = document.getElementById('modal-confirm');
+    const okBtn     = document.getElementById('modal-confirm-ok');
+    const cancelBtn = document.getElementById('modal-confirm-cancel');
+    overlay.classList.add('open');
+    const done = val => {
+      overlay.classList.remove('open');
+      okBtn.removeEventListener('click', okHandler);
+      cancelBtn.removeEventListener('click', cancelHandler);
+      resolve(val);
+    };
+    const okHandler     = () => done(true);
+    const cancelHandler = () => done(false);
+    okBtn.addEventListener('click', okHandler);
+    cancelBtn.addEventListener('click', cancelHandler);
+  });
+}
+
 function imeEnter(el, fn) {
   let c = false;
   el.addEventListener('compositionstart', () => { c = true; });
@@ -245,9 +280,9 @@ let _identityModalDown = false;
 modalIdentity.addEventListener('pointerdown', e => { _identityModalDown = e.target === modalIdentity; });
 modalIdentity.addEventListener('click', e => { if (e.target === modalIdentity && _identityModalDown) modalIdentity.classList.remove('open'); });
 
-function openModal() {
+async function openModal() {
   if (!group.members.length) {
-    alert('請先新增成員再新增消費');
+    await showAlert('請先新增成員再新增消費');
     return;
   }
   if (!myId) {
@@ -350,7 +385,7 @@ function renderMembers() {
       del.textContent = '×';
       del.addEventListener('click', async e => {
         await guardedAction(e.currentTarget, async () => {
-          if (!confirm(`刪除「${member.name}」？`)) return;
+          if (!await showConfirm(`刪除「${member.name}」？`)) return;
           group.members = group.members.filter(m => m.id !== member.id);
           if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
           group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
@@ -398,7 +433,7 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
       setTimeout(() => input.classList.remove('!border-red-400'), 800);
       input.focus(); return;
     }
-    if (group.members.some(m => m.name === name)) { alert(`「${name}」已存在`); return; }
+    if (group.members.some(m => m.name === name)) { await showAlert(`「${name}」已存在`); return; }
     group.members.push({ id: uuid(), name, payment_info: '' });
     group.last_action = { type: 'add_member', actor: myName(), target: name };
     await saveGroup(group);
@@ -674,22 +709,22 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   if (!title)                 { const el = document.getElementById('input-title');  el.classList.add('!border-red-400'); setTimeout(() => el.classList.remove('!border-red-400'), 800); el.focus(); return; }
   if (!amount || amount <= 0) { const el = document.getElementById('input-amount'); el.classList.add('!border-red-400'); setTimeout(() => el.classList.remove('!border-red-400'), 800); el.focus(); return; }
   if (!date)                  { document.getElementById('input-date').focus(); return; }
-  if (!payerId)               { alert('請選擇付款人'); return; }
-  if (!participantIds.length) { alert('至少選擇一位參與者'); return; }
+  if (!payerId)               { await showAlert('請選擇付款人'); return; }
+  if (!participantIds.length) { await showAlert('至少選擇一位參與者'); return; }
 
   let custom_amounts = null;
   if (splitMode === 'custom') {
     const inputs = [...document.querySelectorAll('.custom-amt')];
-    if (inputs.some(i => (parseFloat(i.value) || 0) < 0)) { alert('自訂金額不可為負數'); return; }
+    if (inputs.some(i => (parseFloat(i.value) || 0) < 0)) { await showAlert('自訂金額不可為負數'); return; }
     const sum = inputs.reduce((s, i) => s + (parseFloat(i.value) || 0), 0);
-    if (Math.round(Math.abs(sum - amount) * 100) > 0) { alert('自訂金額合計須等於總金額'); return; }
+    if (Math.round(Math.abs(sum - amount) * 100) > 0) { await showAlert('自訂金額合計須等於總金額'); return; }
     custom_amounts = {};
     inputs.forEach(i => { custom_amounts[i.dataset.memberId] = parseFloat(i.value) || 0; });
   }
 
   const currency      = getCurrency();
   const exchange_rate = currency === 'TWD' ? 1 : (parseFloat(document.getElementById('input-rate').value) || 1);
-  if (currency !== 'TWD' && !document.getElementById('input-rate').value) { alert('請填寫匯率'); document.getElementById('input-rate').focus(); return; }
+  if (currency !== 'TWD' && !document.getElementById('input-rate').value) { await showAlert('請填寫匯率'); document.getElementById('input-rate').focus(); return; }
 
   const expenseData = { title, amount, currency, exchange_rate, date, payer_id: payerId, participant_ids: participantIds, split_type: splitMode, custom_amounts };
   if (editingExpenseId) {
@@ -829,7 +864,7 @@ function renderExpenseCards(highlightId = null) {
       if (!group.locked) card.querySelector('.edit-btn').addEventListener('click', () => loadExpenseToForm(expense));
       if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async e => {
         await guardedAction(e.currentTarget, async () => {
-          if (!confirm(`確定刪除「${expense.title}」？`)) return;
+          if (!await showConfirm(`確定刪除「${expense.title}」？`)) return;
           group.expenses = group.expenses.filter(e => e.id !== expense.id);
           group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount };
           await saveGroup(group);
@@ -984,7 +1019,7 @@ function renderSettlementHistory() {
 
 document.getElementById('btn-save-settlement').addEventListener('click', async e => {
   await guardedAction(e.currentTarget, async () => {
-    if (!confirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
+    if (!await showConfirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
     const transfers = calcSettlement();
     if (transfers.length) {
       group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });

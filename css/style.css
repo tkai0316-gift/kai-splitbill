@@ -42,6 +42,15 @@ button, input, select, textarea, a { touch-action: manipulation; }
   #btn-fab { right: calc(50vw + 1.5rem); }
 }
 
+/* Alert / Confirm dialog 動畫 */
+.modal-dialog {
+  animation: dialogIn 0.18s ease;
+}
+@keyframes dialogIn {
+  from { transform: scale(0.94); opacity: 0; }
+  to   { transform: scale(1);    opacity: 1; }
+}
+
 /* 新增消費卡片 highlight */
 @keyframes cardHighlight {
   0%   { background-color: #eff6ff; border-color: #bfdbfe; }

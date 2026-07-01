@@ -78,6 +78,15 @@
     © 2026 分帳 Pro
   </footer>
 
+  <!-- Alert Dialog -->
+  <div id="modal-alert" class="modal-overlay fixed inset-0 bg-black/40 z-[60] hidden items-center justify-center px-6">
+    <div class="modal-dialog bg-white rounded-2xl w-full max-w-xs p-6 shadow-xl">
+      <p id="modal-alert-msg" class="text-sm text-gray-700 text-center leading-relaxed"></p>
+      <button id="modal-alert-ok"
+        class="mt-5 w-full py-3 bg-blue-600 text-white font-semibold rounded-xl text-sm hover:bg-blue-700 active:scale-95 transition">確定</button>
+    </div>
+  </div>
+
   <script type="module" src="js/home.js"></script>
 </body>
 </html>
