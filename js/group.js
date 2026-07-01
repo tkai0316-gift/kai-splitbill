@@ -454,8 +454,8 @@ function fmt(n) {
 }
 
 // ── 樣式常數 ──
-const CLS_SPLIT_ACTIVE   = CLS_SPLIT_ACTIVE;
-const CLS_SPLIT_INACTIVE = CLS_SPLIT_INACTIVE;
+const CLS_SPLIT_ACTIVE   = 'px-3 py-1.5 bg-blue-600 text-white transition';
+const CLS_SPLIT_INACTIVE = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
 const CLS_FOLD_BADGE     = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
 
 // ── 狀態卡 ──
