@@ -504,14 +504,16 @@ function openMyStatement() {
     const rawShare = e.split_type === 'custom' && e.custom_amounts ? e.custom_amounts[myId] : undefined;
     if (e.split_type === 'custom' && e.custom_amounts && rawShare === undefined)
       console.warn('[splitbill] custom_amounts missing key:', myId, e.title);
-    const share = rawShare !== undefined
-      ? Number(rawShare) * rate
-      : (e.participant_ids.length ? Number(e.amount) * rate / e.participant_ids.length : 0);
+    const shareOrig = rawShare !== undefined
+      ? Number(rawShare)
+      : (e.participant_ids.length ? Number(e.amount) / e.participant_ids.length : 0);
+    const share = shareOrig * rate;
     const isPayer = e.payer_id === myId;
     if (isPayer) paidInList += Number(e.amount) * rate;
     const payer = group.members.find(m => m.id === e.payer_id);
     myOwed += share;
 
+    const hasFx = e.currency && e.currency !== 'TWD';
     const row = document.createElement('div');
     row.className = 'flex items-center justify-between py-2.5 border-b border-gray-50';
     row.innerHTML = `
@@ -519,7 +521,10 @@ function openMyStatement() {
         <div class="text-sm font-medium text-gray-900 truncate">${esc(e.title)}</div>
         <div class="text-xs text-gray-400">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
       </div>
-      <div class="text-sm font-semibold text-gray-800 flex-shrink-0 ml-3">$${fmt(Math.round(share))}</div>
+      <div class="text-right flex-shrink-0 ml-3">
+        <div class="text-sm font-semibold text-gray-800">$${fmt(Math.round(share))}</div>
+        ${hasFx ? `<div class="text-xs text-blue-400">${esc(e.currency)} ${fmt(shareOrig)}</div>` : ''}
+      </div>
     `;
     listEl.appendChild(row);
   });
