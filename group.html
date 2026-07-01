@@ -153,13 +153,13 @@
       <div class="flex items-center gap-2">
         <span id="rate-label" class="text-xs text-blue-600 whitespace-nowrap">1 USD =</span>
         <input type="number" id="input-rate" step="0.0001" placeholder="匯率"
-          class="w-28 px-2 py-1 bg-white border border-blue-200 rounded-lg text-sm text-center font-mono focus:outline-none focus:border-blue-400 transition">
-        <span class="text-xs text-blue-600">TWD</span>
-        <span id="rate-loading" class="hidden ml-auto">
+          class="w-24 min-w-0 px-2 py-1 bg-white border border-blue-200 rounded-lg text-sm text-center font-mono focus:outline-none focus:border-blue-400 transition">
+        <span class="text-xs text-blue-600 whitespace-nowrap">TWD</span>
+        <span id="rate-loading" class="hidden">
           <svg class="w-3.5 h-3.5 animate-spin text-blue-400" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25"/><path fill="currentColor" class="opacity-75" d="M4 12a8 8 0 018-8v8z"/></svg>
         </span>
+        <span class="ml-auto text-xs text-gray-400 whitespace-nowrap">≈ <span id="twd-preview" class="font-semibold text-blue-700">NT$ —</span></span>
       </div>
-      <p class="text-right mt-1.5 text-xs text-gray-400">≈ <span id="twd-preview" class="font-semibold text-blue-700">NT$ —</span></p>
     </div>
     <input type="date" id="input-date"
       class="w-full mt-2.5 px-4 py-3 bg-gray-50 border border-gray-200 rounded-2xl text-sm focus:outline-none focus:border-blue-400 focus:bg-white transition">
