@@ -723,8 +723,8 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   }
 
   const currency      = getCurrency();
-  const exchange_rate = currency === 'TWD' ? 1 : (parseFloat(document.getElementById('input-rate').value) || 1);
-  if (currency !== 'TWD' && !document.getElementById('input-rate').value) { await showAlert('請填寫匯率'); document.getElementById('input-rate').focus(); return; }
+  const exchange_rate = currency === 'TWD' ? 1 : parseFloat(document.getElementById('input-rate').value);
+  if (currency !== 'TWD' && !(exchange_rate > 0)) { await showAlert('匯率必須大於 0'); document.getElementById('input-rate').focus(); return; }
 
   const expenseData = { title, amount, currency, exchange_rate, date, payer_id: payerId, participant_ids: participantIds, split_type: splitMode, custom_amounts };
   if (editingExpenseId) {
