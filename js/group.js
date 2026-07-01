@@ -741,11 +741,11 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   if (editingExpenseId) {
     const idx = group.expenses.findIndex(e => e.id === editingExpenseId);
     if (idx !== -1) group.expenses[idx] = { ...group.expenses[idx], ...expenseData };
-    group.last_action = { type: 'edit_expense', actor: myName(), title, amount };
+    group.last_action = { type: 'edit_expense', actor: myName(), title, amount, currency, exchange_rate };
   } else {
     group.expenses.push({ id: uuid(), ...expenseData, created_at: new Date().toISOString() });
     const payer = group.members.find(m => m.id === payerId)?.name ?? null;
-    group.last_action = { type: 'add_expense', actor: payer, title, amount };
+    group.last_action = { type: 'add_expense', actor: payer, title, amount, currency, exchange_rate };
   }
 
   const highlightId = editingExpenseId ? null : group.expenses[group.expenses.length - 1].id;
@@ -877,7 +877,7 @@ function renderExpenseCards(highlightId = null) {
         await guardedAction(e.currentTarget, async () => {
           if (!await showConfirm(`確定刪除「${expense.title}」？`)) return;
           group.expenses = group.expenses.filter(e => e.id !== expense.id);
-          group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount };
+          group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount, currency: expense.currency, exchange_rate: expense.exchange_rate };
           await saveGroup(group);
           renderExpenseCards();
           renderStatusCard();

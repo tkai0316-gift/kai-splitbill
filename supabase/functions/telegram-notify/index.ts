@@ -14,6 +14,14 @@ function fmt(n: number) {
   return Number(n).toLocaleString('en-US');
 }
 
+function fmtAmt(amount: number, currency?: string, exchange_rate?: number): string {
+  if (currency && currency !== 'TWD' && exchange_rate && exchange_rate > 0) {
+    const twd = Math.round(amount * exchange_rate);
+    return `${currency} ${fmt(amount)} (≈NT$${fmt(twd)})`;
+  }
+  return `NT$${fmt(Math.round(amount))}`;
+}
+
 function groupLink(code: string, name: string) {
   return `[${name}](${BASE_URL}/group.html?code=${code})`;
 }
@@ -59,19 +67,19 @@ Deno.serve(async (req) => {
       let msg = '';
       switch (a.type) {
         case 'add_member':
-          msg = `👤 ${a.target} 加入群組`; break;
+          msg = `👤 ${actor} 新增了成員 ${a.target}`; break;
         case 'remove_member':
           msg = `👤 ${actor} 移除了 ${a.target}`; break;
         case 'add_expense':
-          msg = `💸 ${actor} 付了 ${a.title} $${fmt(a.amount)}`; break;
+          msg = `💸 ${actor} 付了 ${a.title} ${fmtAmt(a.amount, a.currency, a.exchange_rate)}`; break;
         case 'edit_expense':
-          msg = `✏️ ${actor} 編輯了 ${a.title} $${fmt(a.amount)}`; break;
+          msg = `✏️ ${actor} 編輯了 ${a.title} ${fmtAmt(a.amount, a.currency, a.exchange_rate)}`; break;
         case 'delete_expense':
-          msg = `🗑 ${actor} 刪除了 ${a.title} $${fmt(a.amount)}`; break;
+          msg = `🗑 ${actor} 刪除了 ${a.title} ${fmtAmt(a.amount, a.currency, a.exchange_rate)}`; break;
         case 'toggle_transfer':
           msg = a.paid
-            ? `✅ ${actor} 標記已付：${a.from} → ${a.to} $${fmt(a.amount)}`
-            : `↩️ ${actor} 撤銷付款：${a.from} → ${a.to} $${fmt(a.amount)}`; break;
+            ? `✅ ${actor} 標記已付：${a.from} → ${a.to} NT$${fmt(a.amount)}`
+            : `↩️ ${actor} 撤銷付款：${a.from} → ${a.to} NT$${fmt(a.amount)}`; break;
         case 'lock':
           msg = `🔒 ${actor} 鎖定群組並結算`; break;
         default:
@@ -90,7 +98,7 @@ Deno.serve(async (req) => {
     if (newMembers.length > oldMembers.length) {
       const oldIds = new Set(oldMembers.map((m: any) => m.id));
       const added = newMembers.filter((m: any) => !oldIds.has(m.id));
-      await sendMessage(`${link}\n👤 ${added.map((m: any) => m.name).join('、')} 加入群組`);
+      await sendMessage(`${link}\n👤 新增成員：${added.map((m: any) => m.name).join('、')}`);
       return new Response('ok');
     }
     if (newMembers.length < oldMembers.length) {
@@ -104,13 +112,13 @@ Deno.serve(async (req) => {
     const newExp: any[] = data.expenses ?? [];
     if (newExp.length > oldExp.length) {
       const e = newExp[newExp.length - 1];
-      await sendMessage(`${link}\n💸 ${memberName(e.payer_id)} 付了 ${e.title ?? '未命名'} $${fmt(e.amount)}`);
+      await sendMessage(`${link}\n💸 ${memberName(e.payer_id)} 付了 ${e.title ?? '未命名'} ${fmtAmt(e.amount, e.currency, e.exchange_rate)}`);
       return new Response('ok');
     }
     if (newExp.length < oldExp.length) {
       const newIds = new Set(newExp.map((e: any) => e.id));
       const deleted = oldExp.find((e: any) => !newIds.has(e.id));
-      await sendMessage(`${link}\n🗑 消費刪除：${deleted?.title ?? '未命名'} $${fmt(deleted?.amount ?? 0)}`);
+      await sendMessage(`${link}\n🗑 消費刪除：${deleted?.title ?? '未命名'} ${fmtAmt(deleted?.amount ?? 0, deleted?.currency, deleted?.exchange_rate)}`);
       return new Response('ok');
     }
 
