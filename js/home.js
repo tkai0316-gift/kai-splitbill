@@ -62,15 +62,22 @@ btnCreate.addEventListener('click', async () => {
   }
 });
 
+let _joining = false;
 btnJoin.addEventListener('click', async () => {
+  if (_joining) return;
   const code = inputCode.value.trim().toUpperCase();
   if (!code) { inputCode.focus(); return; }
-  const group = await getGroup(code);
-  if (!group) {
-    await showAlert('找不到此邀請碼，請確認後再試');
-    return;
+  _joining = true;
+  try {
+    const group = await getGroup(code);
+    if (!group) {
+      await showAlert('找不到此邀請碼，請確認後再試');
+      return;
+    }
+    location.href = `group.html?code=${code}`;
+  } finally {
+    _joining = false;
   }
-  location.href = `group.html?code=${code}`;
 });
 
 // Enter 鍵觸發（IME 組字中不觸發）

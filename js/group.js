@@ -2,6 +2,9 @@ import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
 
 const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 
+const _togglingTransfers = new Set();
+let _rateReqId = 0;
+
 // ── 多幣別 ──
 async function fetchExchangeRate(currency) {
   if (!currency || currency === 'TWD') return 1;
@@ -101,7 +104,9 @@ window.onCurrencyChange = async function() {
   rateRow.classList.remove('hidden');
   rateLabel.textContent = `1 ${sel} =`;
   spinner.classList.remove('hidden');
+  const reqId = ++_rateReqId;
   const rate = await fetchExchangeRate(sel);
+  if (reqId !== _rateReqId) return; // 被更新的請求覆蓋，丟棄此結果
   spinner.classList.add('hidden');
   if (rate !== null) {
     rateInput.value = Number(rate).toFixed(4);
@@ -1002,12 +1007,23 @@ function renderSettleResult(transfers) {
       </div>
     `;
     div.querySelector('.transfer-toggle').addEventListener('click', async () => {
+      if (_togglingTransfers.has(key)) return;
+      _togglingTransfers.add(key);
       const wasPaid = !!group.paid_transfers[key];
-      if (wasPaid) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
-      group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
-      await saveGroup(group);
-      renderSettleResult(calcSettlement());
-      renderPaymentSettings();
+      try {
+        if (wasPaid) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
+        group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
+        await saveGroup(group);
+        renderSettleResult(calcSettlement());
+        renderPaymentSettings();
+      } catch (err) {
+        if (wasPaid) { group.paid_transfers[key] = true; } else { delete group.paid_transfers[key]; }
+        await showAlert('操作失敗：' + err.message);
+        renderSettleResult(calcSettlement());
+        renderPaymentSettings();
+      } finally {
+        _togglingTransfers.delete(key);
+      }
     });
     container.appendChild(div);
   });
@@ -1079,9 +1095,15 @@ function renderPaymentSettings() {
       const newVal = input.value.trim();
       if (newVal === _origPaymentInfo) return;
       member.payment_info = newVal;
-      await saveGroup(group);
-      renderSettleResult(calcSettlement());
-      renderStatusCard();
+      try {
+        await saveGroup(group);
+        renderSettleResult(calcSettlement());
+        renderStatusCard();
+      } catch (err) {
+        member.payment_info = _origPaymentInfo;
+        input.value = _origPaymentInfo;
+        await showAlert('儲存失敗：' + err.message);
+      }
     });
     imeEnter(input, () => input.blur());
     row.append(name, input);
