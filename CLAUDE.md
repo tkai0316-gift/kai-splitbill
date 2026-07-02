@@ -4,10 +4,12 @@
 
 | 要找什麼 | 先看這裡 |
 |---------|---------|
-| 主入口 | `index.html` + `js/app.js` |
-| XSS 工具 / 共用函式 | `utils.js`（`esc()` / `safeUrl()` 唯一來源） |
+| 首頁（建立/加入群組） | `index.html` + `js/home.js` |
+| 群組頁（消費/結算/收款） | `group.html` + `js/group.js` |
+| DB 存取（optimistic lock） | `js/db.js` |
+| XSS 工具 / 共用函式 | `js/utils.js`（`esc()` / `safeParse()` 唯一來源） |
 | Telegram 通知 | `supabase/functions/telegram-notify/` |
-| 多幣別匯率 | `js/currency.js`（open.er-api.com，結算固定 TWD） |
+| 多幣別匯率 | `js/group.js` 內（open.er-api.com，結算固定 TWD） |
 
 ## 技術棧
 

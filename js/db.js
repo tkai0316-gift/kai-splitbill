@@ -34,7 +34,7 @@ export async function getGroup(code) {
 }
 
 export async function saveGroup(group) {
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from('splitbill_groups')
     .update({
       data: group,
@@ -45,6 +45,8 @@ export async function saveGroup(group) {
     .eq('version', currentVersion)
     .select('version');
 
+  // 網路 / RLS 錯誤 → throw 給呼叫端 revert；只有「真的被別人改過」才走衝突重載
+  if (error) throw new Error(error.message);
   if (!data?.length) {
     showConflictToast();
     return;
@@ -53,24 +55,31 @@ export async function saveGroup(group) {
 }
 
 export async function createGroup(name) {
-  const code = Math.random().toString(36).slice(2, 8).toUpperCase();
-  const group = {
-    id: uuid(),
-    name,
-    share_code: code,
-    members: [],
-    expenses: [],
-    settlements: [],
-    paid_transfers: {},
-    locked: false,
-    created_at: new Date().toISOString(),
-  };
-  const { error } = await supabase
-    .from('splitbill_groups')
-    .insert({ share_code: code, data: group, updated_at: new Date().toISOString() });
-  if (error) throw error;
-  currentVersion = 0;
-  return group;
+  let lastError = null;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    const code = Math.random().toString(36).slice(2, 8).toUpperCase();
+    const group = {
+      id: uuid(),
+      name,
+      share_code: code,
+      members: [],
+      expenses: [],
+      settlements: [],
+      paid_transfers: {},
+      locked: false,
+      created_at: new Date().toISOString(),
+    };
+    const { error } = await supabase
+      .from('splitbill_groups')
+      .insert({ share_code: code, data: group, updated_at: new Date().toISOString() });
+    if (!error) {
+      currentVersion = 0;
+      return group;
+    }
+    lastError = error;
+    if (error.code !== '23505') break; // 只有撞碼（unique violation）才換碼重試
+  }
+  throw lastError;
 }
 
 export async function guardedAction(el, asyncFn) {

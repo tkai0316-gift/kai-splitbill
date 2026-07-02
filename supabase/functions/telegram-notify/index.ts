@@ -27,20 +27,25 @@ function groupLink(code: string, name: string) {
 }
 
 const SUPABASE_URL = Deno.env.get('SUPABASE_URL') ?? '';
-const SUPABASE_SERVICE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '';
 
-async function isSplitbillEnabled(): Promise<boolean> {
-  if (!SUPABASE_URL || !SUPABASE_SERVICE_KEY) return true;
+// Webhook 驗證兼模組開關：用來者出示的 token 查 bot_settings（該表 RLS 無 policy，僅 service role 可見）。
+// 查得到 row = DB trigger 的 service role 呼叫；查不到（anon/偽造 token）回 null → 401。
+async function getModuleFlag(token: string): Promise<string | null> {
+  if (!SUPABASE_URL || !token) return null;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/bot_settings?key=eq.module_splitbill&select=value`, {
-    headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` },
+    headers: { 'apikey': token, 'Authorization': `Bearer ${token}` },
   });
+  if (!res.ok) return null;
   const rows = await res.json();
-  return rows?.[0]?.value !== 'false';
+  return rows?.[0]?.value ?? null;
 }
 
 Deno.serve(async (req) => {
   try {
-    if (!await isSplitbillEnabled()) return new Response('ok');
+    const token = (req.headers.get('authorization') ?? '').replace(/^Bearer\s+/i, '');
+    const moduleFlag = await getModuleFlag(token);
+    if (moduleFlag === null) return new Response('unauthorized', { status: 401 });
+    if (moduleFlag === 'false') return new Response('ok');
 
     const { type, table, record, old_record } = await req.json();
     if (table !== 'splitbill_groups') return new Response('ok');

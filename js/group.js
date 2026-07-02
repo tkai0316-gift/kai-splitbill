@@ -1,6 +1,5 @@
 import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
-
-const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+import { esc, safeParse } from './utils.js';
 
 const _togglingTransfers = new Set();
 let _rateReqId = 0;
@@ -69,7 +68,9 @@ async function applyOtherCurrency(code) {
   const spinner   = document.getElementById('rate-loading');
   rateLabel.textContent = `1 ${code} =`;
   spinner.classList.remove('hidden');
+  const reqId = ++_rateReqId;
   const rate = await fetchExchangeRate(code);
+  if (reqId !== _rateReqId) return; // 已有更新的請求，丟棄此結果
   spinner.classList.add('hidden');
   if (rate !== null) {
     rateInput.value = Number(rate).toFixed(4);
@@ -91,6 +92,8 @@ window.onCurrencyChange = async function() {
 
   otherWrap.classList.toggle('hidden', sel !== 'OTHER');
   if (sel === 'OTHER') {
+    ++_rateReqId; // 作廢 in-flight 匯率請求
+    spinner.classList.add('hidden');
     document.getElementById('input-currency-other').value = '';
     document.getElementById('currency-other-dropdown').classList.add('hidden');
     rateRow.classList.remove('hidden');
@@ -100,7 +103,13 @@ window.onCurrencyChange = async function() {
       document.getElementById('input-currency-other').focus();
     return;
   }
-  if (sel === 'TWD') { rateRow.classList.add('hidden'); return; }
+  if (sel === 'TWD') {
+    ++_rateReqId; // 作廢 in-flight 匯率請求
+    spinner.classList.add('hidden');
+    rateRow.classList.add('hidden');
+    rateInput.value = ''; // 清掉已回來的舊匯率，避免殘值
+    return;
+  }
   rateRow.classList.remove('hidden');
   rateLabel.textContent = `1 ${sel} =`;
   spinner.classList.remove('hidden');
@@ -176,14 +185,15 @@ if (!group) {
 }
 
 if (!group.paid_transfers) group.paid_transfers = {};
+if (!group.settlements) group.settlements = [];
 if (group.locked === undefined) group.locked = false;
 
 // 記錄最近開啟的群組
 ;(function saveRecent() {
   const KEY = 'splitbill_recent';
   const item = { code: CODE, name: group.name, ts: Date.now() };
-  const list = JSON.parse(localStorage.getItem(KEY) || '[]')
-    .filter(g => g.code !== CODE);
+  const stored = safeParse(localStorage.getItem(KEY), []);
+  const list = (Array.isArray(stored) ? stored : []).filter(g => g.code !== CODE);
   list.unshift(item);
   localStorage.setItem(KEY, JSON.stringify(list.slice(0, 5)));
 })();
@@ -201,7 +211,13 @@ function applyLockState() {
 document.getElementById('btn-unlock').addEventListener('click', async e => {
   await guardedAction(e.currentTarget, async () => {
     group.locked = false;
-    await saveGroup(group);
+    try {
+      await saveGroup(group);
+    } catch (err) {
+      group.locked = true;
+      await showAlert('儲存失敗：' + err.message);
+      return;
+    }
     applyLockState();
   });
 });
@@ -397,14 +413,27 @@ function renderMembers() {
             return;
           }
           if (!await showConfirm(`刪除「${member.name}」？`)) return;
+          const prevMembers = group.members;
+          const prevAction  = group.last_action;
+          const wasMe       = myId === member.id;
           group.members = group.members.filter(m => m.id !== member.id);
-          if (myId === member.id) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
+          if (wasMe) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
           group.last_action = { type: 'remove_member', actor: myName(), target: member.name };
-          await saveGroup(group);
+          try {
+            await saveGroup(group);
+          } catch (err) {
+            group.members = prevMembers;
+            group.last_action = prevAction;
+            if (wasMe) { myId = member.id; localStorage.setItem(IDENTITY_KEY, myId); }
+            await showAlert('儲存失敗：' + err.message);
+            renderMembers();
+            return;
+          }
           membersExpanded = false;
           renderMembers();
           renderExpenseForm();
           renderPaymentSettings();
+          renderStatusCard();
         });
       });
       chip.appendChild(del);
@@ -445,9 +474,17 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
       input.focus(); return;
     }
     if (group.members.some(m => m.name === name)) { await showAlert(`「${name}」已存在`); return; }
+    const prevAction = group.last_action;
     group.members.push({ id: uuid(), name, payment_info: '' });
     group.last_action = { type: 'add_member', actor: myName(), target: name };
-    await saveGroup(group);
+    try {
+      await saveGroup(group);
+    } catch (err) {
+      group.members.pop();
+      group.last_action = prevAction;
+      await showAlert('儲存失敗：' + err.message);
+      return;
+    }
     input.value = '';
     membersExpanded = false;
     renderMembers();
@@ -567,8 +604,10 @@ document.getElementById('btn-statement-close').addEventListener('click', () => {
   modalStatement.classList.remove('open');
   modalStatement.classList.add('hidden');
 });
+let _stmtModalDown = false;
+modalStatement.addEventListener('pointerdown', e => { _stmtModalDown = e.target === modalStatement; });
 modalStatement.addEventListener('click', e => {
-  if (e.target === modalStatement) {
+  if (e.target === modalStatement && _stmtModalDown) {
     modalStatement.classList.remove('open');
     modalStatement.classList.add('hidden');
   }
@@ -601,7 +640,7 @@ function renderExpenseForm() {
     // 新成員（第一次出現）→ 預設勾選；既有成員 → 保留上次狀態
     cb.checked = prevAllIds.includes(m.id) ? prevChecked.includes(m.id) : true;
     cb.className = 'accent-blue-600';
-    cb.addEventListener('change', () => renderCustomInputs());
+    cb.addEventListener('change', () => renderCustomInputs(collectCustomAmounts()));
     const span = document.createElement('span');
     span.className = 'text-sm text-gray-700';
     span.textContent = m.name;
@@ -613,6 +652,8 @@ function renderExpenseForm() {
     cbContainer.querySelectorAll('input').forEach(cb => {
       if (cb.value === payerSelect.value) cb.checked = true;
     });
+    // 程式化 .checked 不觸發 change 事件，需手動補 render 付款人的自訂分攤列
+    renderCustomInputs(collectCustomAmounts());
   };
 }
 
@@ -656,6 +697,14 @@ document.getElementById('input-date').value = new Date().toISOString().split('T'
 // ── 消費 CRUD ──
 let editingExpenseId = null;
 let splitMode = 'equal';
+
+function collectCustomAmounts() {
+  const amounts = {};
+  document.querySelectorAll('.custom-amt').forEach(i => {
+    if (i.value !== '') amounts[i.dataset.memberId] = i.value;
+  });
+  return amounts;
+}
 
 function updateCustomHint() {
   const total = parseFloat(document.getElementById('input-amount').value) || 0;
@@ -751,18 +800,30 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   if (currency !== 'TWD' && !(exchange_rate > 0)) { await showAlert('匯率必須大於 0'); document.getElementById('input-rate').focus(); return; }
 
   const expenseData = { title, amount, currency, exchange_rate, date, payer_id: payerId, participant_ids: participantIds, split_type: splitMode, custom_amounts };
+  const prevAction = group.last_action;
+  let revert;
   if (editingExpenseId) {
     const idx = group.expenses.findIndex(e => e.id === editingExpenseId);
+    const prevExpense = idx !== -1 ? group.expenses[idx] : null;
     if (idx !== -1) group.expenses[idx] = { ...group.expenses[idx], ...expenseData };
+    revert = () => { if (idx !== -1) group.expenses[idx] = prevExpense; };
     group.last_action = { type: 'edit_expense', actor: myName(), title, amount, currency, exchange_rate };
   } else {
     group.expenses.push({ id: uuid(), ...expenseData, created_at: new Date().toISOString() });
+    revert = () => group.expenses.pop();
     const payer = group.members.find(m => m.id === payerId)?.name ?? null;
     group.last_action = { type: 'add_expense', actor: payer, title, amount, currency, exchange_rate };
   }
 
   const highlightId = editingExpenseId ? null : group.expenses[group.expenses.length - 1].id;
-  await saveGroup(group);
+  try {
+    await saveGroup(group);
+  } catch (err) {
+    revert();
+    group.last_action = prevAction;
+    await showAlert('儲存失敗：' + err.message); // modal 保持開啟，輸入不丟失
+    return;
+  }
   closeModal();
   renderExpenseCards(highlightId);
   renderStatusCard();
@@ -889,9 +950,18 @@ function renderExpenseCards(highlightId = null) {
       if (!group.locked) card.querySelector('.del-btn').addEventListener('click', async e => {
         await guardedAction(e.currentTarget, async () => {
           if (!await showConfirm(`確定刪除「${expense.title}」？`)) return;
+          const prevExpenses = group.expenses;
+          const prevAction   = group.last_action;
           group.expenses = group.expenses.filter(e => e.id !== expense.id);
           group.last_action = { type: 'delete_expense', actor: myName(), title: expense.title, amount: expense.amount, currency: expense.currency, exchange_rate: expense.exchange_rate };
-          await saveGroup(group);
+          try {
+            await saveGroup(group);
+          } catch (err) {
+            group.expenses = prevExpenses;
+            group.last_action = prevAction;
+            await showAlert('儲存失敗：' + err.message);
+            return;
+          }
           renderExpenseCards();
           renderStatusCard();
           renderSettleResult(calcSettlement());
@@ -944,13 +1014,12 @@ function calcSettlement() {
 function renderSettleResult(transfers) {
   const container = document.getElementById('settle-result');
   container.innerHTML = '';
-  // 清除帳目金額變動後殘留的孤兒 key
+  // 清除帳目金額變動後殘留的孤兒 key（只清記憶體，隨下一次真實存檔落地；
+  // 在此直接 saveGroup 會讓純瀏覽也寫 DB，且觸發誤導的「撤銷付款」通知）
   const validKeys = new Set(transfers.map(t => `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`));
-  const stale = Object.keys(group.paid_transfers || {}).filter(k => !validKeys.has(k));
-  if (stale.length) {
-    stale.forEach(k => delete group.paid_transfers[k]);
-    saveGroup(group).catch(() => {});
-  }
+  Object.keys(group.paid_transfers || {})
+    .filter(k => !validKeys.has(k))
+    .forEach(k => delete group.paid_transfers[k]);
   const btn = document.getElementById('btn-save-settlement');
 
   if (!group.expenses.length) {
@@ -1029,7 +1098,6 @@ function renderSettleResult(transfers) {
   });
 
   btn.classList.toggle('hidden', group.locked);
-  btn.dataset.pending = JSON.stringify(transfers);
 }
 
 function renderSettlementHistory() {
@@ -1056,12 +1124,21 @@ document.getElementById('btn-save-settlement').addEventListener('click', async e
   await guardedAction(e.currentTarget, async () => {
     if (!await showConfirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
     const transfers = calcSettlement();
+    const prevAction = group.last_action;
     if (transfers.length) {
       group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
     }
     group.locked = true;
     group.last_action = { type: 'lock', actor: myName() };
-    await saveGroup(group);
+    try {
+      await saveGroup(group);
+    } catch (err) {
+      if (transfers.length) group.settlements.pop();
+      group.locked = false;
+      group.last_action = prevAction;
+      await showAlert('儲存失敗：' + err.message);
+      return;
+    }
     applyLockState();
     renderSettlementHistory();
   });

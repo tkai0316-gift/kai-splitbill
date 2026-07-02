@@ -1,4 +1,5 @@
 import { createGroup, getGroup } from './db.js';
+import { esc, safeParse } from './utils.js';
 
 function showAlert(msg) {
   return new Promise(resolve => {
@@ -15,12 +16,11 @@ function showAlert(msg) {
   });
 }
 
-const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
-
 // 顯示最近開啟的群組
 function renderRecent() {
   const KEY = 'splitbill_recent';
-  const list = JSON.parse(localStorage.getItem(KEY) || '[]');
+  const stored = safeParse(localStorage.getItem(KEY), []);
+  const list = Array.isArray(stored) ? stored : [];
   const container = document.getElementById('recent-groups');
   const listEl = document.getElementById('recent-list');
   if (!list.length) { container.classList.add('hidden'); return; }
@@ -68,6 +68,7 @@ btnJoin.addEventListener('click', async () => {
   const code = inputCode.value.trim().toUpperCase();
   if (!code) { inputCode.focus(); return; }
   _joining = true;
+  btnJoin.disabled = true;
   try {
     const group = await getGroup(code);
     if (!group) {
@@ -77,6 +78,7 @@ btnJoin.addEventListener('click', async () => {
     location.href = `group.html?code=${code}`;
   } finally {
     _joining = false;
+    btnJoin.disabled = false;
   }
 });
 
