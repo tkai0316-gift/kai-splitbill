@@ -24,26 +24,17 @@ export function uuid() {
 }
 
 export async function getGroup(code) {
+  // 2026-09-18 改走 SECURITY DEFINER RPC（ADR-013 Tier D）：主表不再對 anon 開放，防不帶 share_code 的枚舉
   const { data } = await supabase
-    .from('splitbill_groups')
-    .select('data, version')
-    .eq('share_code', code)
-    .single();
+    .rpc('splitbill_get', { p_code: code })
+    .maybeSingle();
   if (data) currentVersion = data.version ?? 0;
   return data?.data ?? null;
 }
 
 export async function saveGroup(group) {
   const { data, error } = await supabase
-    .from('splitbill_groups')
-    .update({
-      data: group,
-      updated_at: new Date().toISOString(),
-      version: currentVersion + 1
-    })
-    .eq('share_code', group.share_code)
-    .eq('version', currentVersion)
-    .select('version');
+    .rpc('splitbill_save', { p_code: group.share_code, p_data: group, p_version: currentVersion });
 
   // 網路 / RLS 錯誤 → throw 給呼叫端 revert；只有「真的被別人改過」才走衝突重載
   if (error) throw new Error(error.message);
@@ -70,8 +61,7 @@ export async function createGroup(name) {
       created_at: new Date().toISOString(),
     };
     const { error } = await supabase
-      .from('splitbill_groups')
-      .insert({ share_code: code, data: group, updated_at: new Date().toISOString() });
+      .rpc('splitbill_create', { p_code: code, p_data: group });
     if (!error) {
       currentVersion = 0;
       return group;
