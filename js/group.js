@@ -264,7 +264,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-btn').forEach(b => {
       const active = b === btn;
       b.className = `tab-btn py-3 px-5 text-sm font-semibold border-b-2 -mb-px ${
-        active ? 'text-blue-600 border-blue-600' : 'text-gray-400 border-transparent'
+        active ? 'text-blue-600 border-blue-600' : 'text-gray-500 border-transparent'
       }`;
     });
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
@@ -403,7 +403,7 @@ function renderMembers() {
 
     if (!hasMemberExpenses(member.id) && !group.locked) {
       const del = document.createElement('button');
-      del.className = `px-2 py-1 text-xs border-l transition ${isMe ? 'border-blue-500 text-blue-200 hover:text-white' : 'border-gray-200 text-gray-300 hover:text-red-400'}`;
+      del.className = `px-2 py-1 text-xs border-l transition ${isMe ? 'border-blue-500 text-blue-200 hover:text-white' : 'border-gray-200 text-gray-400 hover:text-red-400'}`;
       del.textContent = '×';
       del.addEventListener('click', async e => {
         await guardedAction(e.currentTarget, async () => {
@@ -458,7 +458,7 @@ function renderMembers() {
 
   if (!myId && group.members.length) {
     const hint = document.createElement('span');
-    hint.className = 'text-xs text-gray-300 self-center';
+    hint.className = 'text-xs text-gray-500 self-center';
     hint.textContent = '↑ 點選認領身份';
     chips.appendChild(hint);
   }
@@ -503,7 +503,7 @@ function fmt(n) {
 // ── 樣式常數 ──
 const CLS_SPLIT_ACTIVE   = 'px-3 py-1.5 bg-blue-600 text-white transition';
 const CLS_SPLIT_INACTIVE = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
-const CLS_FOLD_BADGE     = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-400 hover:text-gray-600 transition';
+const CLS_FOLD_BADGE     = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-500 hover:text-gray-600 transition';
 
 // ── 狀態卡 ──
 function renderStatusCard() {
@@ -550,7 +550,7 @@ function openMyStatement() {
   let myOwed = 0;
   let paidInList = 0;
   const listEl = document.getElementById('statement-list');
-  listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-300 text-center py-4">尚無消費記錄</p>';
+  listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-500 text-center py-4">尚無消費記錄</p>';
 
   myExpenses.forEach(e => {
     const rate = Number(e.exchange_rate) || 1;
@@ -573,7 +573,7 @@ function openMyStatement() {
     row.innerHTML = `
       <div class="min-w-0 flex-1">
         <div class="text-sm font-medium text-gray-900 truncate">${esc(e.title)}</div>
-        <div class="text-xs text-gray-400">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
+        <div class="text-xs text-gray-600">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
       </div>
       <div class="text-right flex-shrink-0 ml-3">
         <div class="text-sm font-semibold text-gray-800">$${fmt(Math.round(share))}</div>
@@ -587,9 +587,9 @@ function openMyStatement() {
   const net = myPaid - myOwed;
   document.getElementById('statement-footer').innerHTML = `
     <div class="w-full">
-      ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-400 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
+      ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-600 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
       <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-400">淨額</span>
+        <span class="text-xs text-gray-600">淨額</span>
         <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
       </div>
     </div>
@@ -905,12 +905,12 @@ function renderExpenseCards(highlightId = null) {
 
   if (!group.expenses.length) {
     container.innerHTML = `<div class="text-center py-14">
-      <svg class="mx-auto mb-3 text-gray-200" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <svg class="mx-auto mb-3 text-gray-300" width="52" height="52" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
         <rect x="2" y="5" width="20" height="14" rx="3"/>
         <path d="M2 10h20"/><path d="M6 15h4"/><path d="M14 15h4"/>
       </svg>
-      <p class="text-gray-300 text-sm">尚無消費記錄</p>
-      <p class="text-gray-200 text-xs mt-1">點擊下方按鈕新增</p>
+      <p class="text-gray-500 text-sm">尚無消費記錄</p>
+      <p class="text-gray-500 text-xs mt-1">點擊下方按鈕新增</p>
     </div>`;
     return;
   }
@@ -933,7 +933,7 @@ function renderExpenseCards(highlightId = null) {
             <h4 class="font-semibold text-gray-950 text-base truncate pr-2">${esc(expense.title)}</h4>
             <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(Math.round(Number(expense.amount) * (Number(expense.exchange_rate) || 1)))}</span>
           </div>
-          <p class="text-sm text-gray-400">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
+          <p class="text-sm text-gray-600">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
           ${expense.currency && expense.currency !== 'TWD' ? `<p class="text-xs text-blue-500 mt-0.5">${esc(expense.currency)} ${fmt(expense.amount)}（匯率 ${Number(expense.exchange_rate).toFixed(4)}）</p>` : ''}
           ${!group.locked ? `<div class="expense-card-actions flex gap-1 mt-2">
             <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition edit-btn" aria-label="編輯">
@@ -1023,7 +1023,7 @@ function renderSettleResult(transfers) {
   const btn = document.getElementById('btn-save-settlement');
 
   if (!group.expenses.length) {
-    container.innerHTML = `<p class="text-gray-300 text-sm">尚無消費記錄</p>`;
+    container.innerHTML = `<p class="text-gray-500 text-sm">尚無消費記錄</p>`;
     btn.classList.add('hidden'); return;
   }
 
@@ -1046,13 +1046,13 @@ function renderSettleResult(transfers) {
   bar.className = 'mb-3';
   bar.innerHTML = `
     <div class="flex justify-between text-xs mb-1">
-      <span class="text-gray-400">已結清 <span class="font-semibold text-gray-600">$${fmt(paidAmt)}</span></span>
-      <span class="font-semibold ${allDone ? 'text-emerald-600' : 'text-gray-400'}">${pct}%</span>
+      <span class="text-gray-600">已結清 <span class="font-semibold text-gray-600">$${fmt(paidAmt)}</span></span>
+      <span class="font-semibold ${allDone ? 'text-emerald-600' : 'text-gray-600'}">${pct}%</span>
     </div>
     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
       <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400' : 'bg-emerald-500'}" style="width:${pct}%"></div>
     </div>
-    ${allDone ? '<p class="text-xs text-emerald-600 font-semibold mt-1">✓ 全部結清！</p>' : `<p class="text-xs text-gray-300 mt-1">待結清 $${fmt(totalAmt - paidAmt)}</p>`}
+    ${allDone ? '<p class="text-xs text-emerald-600 font-semibold mt-1">✓ 全部結清！</p>' : `<p class="text-xs text-gray-500 mt-1">待結清 $${fmt(totalAmt - paidAmt)}</p>`}
   `;
   container.appendChild(bar);
 
@@ -1063,15 +1063,15 @@ function renderSettleResult(transfers) {
     div.className = `flex items-center justify-between p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'}`;
     div.innerHTML = `
       <div>
-        <div class="flex items-center gap-1.5 text-sm ${paid ? 'text-gray-300' : ''}">
+        <div class="flex items-center gap-1.5 text-sm ${paid ? 'text-gray-500' : ''}">
           <span class="font-semibold">${esc(t.from_name)}</span>
           <span class="text-base ${paid ? '' : 'text-emerald-500'}">→</span>
           <span class="font-semibold">${esc(t.to_name)}</span>
         </div>
-        ${t.payment_info && !paid ? `<div class="text-xs text-gray-400 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
+        ${t.payment_info && !paid ? `<div class="text-xs text-gray-600 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
-        <span class="text-lg font-bold ${paid ? 'text-gray-300 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
+        <span class="text-lg font-bold ${paid ? 'text-gray-500 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
         <button class="transfer-toggle text-xs px-2.5 py-1 rounded-full border transition ${paid ? 'bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200' : 'border-emerald-400 text-emerald-600 hover:bg-emerald-100'}">${paid ? '撤銷' : '標記已付'}</button>
       </div>
     `;
@@ -1106,7 +1106,7 @@ function renderSettlementHistory() {
   if (!group.settlements.length) return;
 
   const title = document.createElement('p');
-  title.className = 'text-xs text-gray-300 uppercase tracking-wider mt-4 mb-2';
+  title.className = 'text-xs text-gray-500 uppercase tracking-wider mt-4 mb-2';
   title.textContent = '歷史紀錄';
   container.appendChild(title);
 
@@ -1115,7 +1115,7 @@ function renderSettlementHistory() {
     div.className = 'pl-3 border-l-2 border-blue-200 mb-2';
     const dt = new Date(s.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
     const summary = s.transfers.length ? s.transfers.map(t => `${esc(t.from_name)}→${esc(t.to_name)} $${fmt(t.amount)}`).join('、') : '已平帳';
-    div.innerHTML = `<p class="text-xs font-semibold text-gray-500">${dt}</p><p class="text-xs text-gray-400">${summary}</p>`;
+    div.innerHTML = `<p class="text-xs font-semibold text-gray-500">${dt}</p><p class="text-xs text-gray-600">${summary}</p>`;
     container.appendChild(div);
   });
 }
@@ -1149,7 +1149,7 @@ function renderPaymentSettings() {
   const container = document.getElementById('payment-list');
   container.innerHTML = '';
   if (!group.members.length) {
-    container.innerHTML = `<p class="text-gray-300 text-sm">尚無成員</p>`; return;
+    container.innerHTML = `<p class="text-gray-500 text-sm">尚無成員</p>`; return;
   }
   const transfers = calcSettlement();
   const creditorIds = [...new Set(transfers.map(t => t.to_id))];
