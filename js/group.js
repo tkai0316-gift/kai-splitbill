@@ -573,7 +573,7 @@ function openMyStatement() {
     row.innerHTML = `
       <div class="min-w-0 flex-1">
         <div class="text-sm font-medium text-gray-900 truncate">${esc(e.title)}</div>
-        <div class="text-xs text-gray-600">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
+        <div class="text-xs text-gray-500">${esc(e.date)} · ${isPayer ? '<span class="text-emerald-600">我墊付</span>' : esc(payer?.name ?? '?') + ' 墊付'}</div>
       </div>
       <div class="text-right flex-shrink-0 ml-3">
         <div class="text-sm font-semibold text-gray-800">$${fmt(Math.round(share))}</div>
@@ -587,9 +587,9 @@ function openMyStatement() {
   const net = myPaid - myOwed;
   document.getElementById('statement-footer').innerHTML = `
     <div class="w-full">
-      ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-600 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-600">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
+      ${paidForOthers > 0 ? `<div class="flex justify-between text-xs text-gray-500 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-500">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
       <div class="flex justify-between items-center">
-        <span class="text-xs text-gray-600">淨額</span>
+        <span class="text-xs text-gray-500">淨額</span>
         <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
       </div>
     </div>
@@ -933,7 +933,7 @@ function renderExpenseCards(highlightId = null) {
             <h4 class="font-semibold text-gray-950 text-base truncate pr-2">${esc(expense.title)}</h4>
             <span class="text-xl font-bold text-gray-950 flex-shrink-0">$${fmt(Math.round(Number(expense.amount) * (Number(expense.exchange_rate) || 1)))}</span>
           </div>
-          <p class="text-sm text-gray-600">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
+          <p class="text-sm text-gray-500">${esc(expense.date)} | ${esc(payer?.name ?? '?')} 墊付 · ${expense.split_type === 'custom' ? '自訂分攤' : `${expense.participant_ids.length} 人均分`}</p>
           ${expense.currency && expense.currency !== 'TWD' ? `<p class="text-xs text-blue-500 mt-0.5">${esc(expense.currency)} ${fmt(expense.amount)}（匯率 ${Number(expense.exchange_rate).toFixed(4)}）</p>` : ''}
           ${!group.locked ? `<div class="expense-card-actions flex gap-1 mt-2">
             <button class="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-blue-600 hover:bg-blue-50 transition edit-btn" aria-label="編輯">
@@ -1046,8 +1046,8 @@ function renderSettleResult(transfers) {
   bar.className = 'mb-3';
   bar.innerHTML = `
     <div class="flex justify-between text-xs mb-1">
-      <span class="text-gray-600">已結清 <span class="font-semibold text-gray-600">$${fmt(paidAmt)}</span></span>
-      <span class="font-semibold ${allDone ? 'text-emerald-600' : 'text-gray-600'}">${pct}%</span>
+      <span class="text-gray-500">已結清 <span class="font-semibold text-gray-500">$${fmt(paidAmt)}</span></span>
+      <span class="font-semibold ${allDone ? 'text-emerald-600' : 'text-gray-500'}">${pct}%</span>
     </div>
     <div class="h-2 bg-gray-100 rounded-full overflow-hidden">
       <div class="h-full rounded-full transition-all duration-500 ${allDone ? 'bg-emerald-400' : 'bg-emerald-500'}" style="width:${pct}%"></div>
@@ -1068,7 +1068,7 @@ function renderSettleResult(transfers) {
           <span class="text-base ${paid ? '' : 'text-emerald-500'}">→</span>
           <span class="font-semibold">${esc(t.to_name)}</span>
         </div>
-        ${t.payment_info && !paid ? `<div class="text-xs text-gray-600 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
+        ${t.payment_info && !paid ? `<div class="text-xs text-gray-500 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
       </div>
       <div class="flex items-center gap-2 flex-shrink-0">
         <span class="text-lg font-bold ${paid ? 'text-gray-500 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
@@ -1115,7 +1115,7 @@ function renderSettlementHistory() {
     div.className = 'pl-3 border-l-2 border-blue-200 mb-2';
     const dt = new Date(s.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei' });
     const summary = s.transfers.length ? s.transfers.map(t => `${esc(t.from_name)}→${esc(t.to_name)} $${fmt(t.amount)}`).join('、') : '已平帳';
-    div.innerHTML = `<p class="text-xs font-semibold text-gray-500">${dt}</p><p class="text-xs text-gray-600">${summary}</p>`;
+    div.innerHTML = `<p class="text-xs font-semibold text-gray-500">${dt}</p><p class="text-xs text-gray-500">${summary}</p>`;
     container.appendChild(div);
   });
 }
