@@ -3,11 +3,16 @@ const CHAT_ID   = Deno.env.get('TELEGRAM_CHAT_ID') ?? '';
 const BASE_URL  = 'https://kai-splitbill.pages.dev';
 
 async function sendMessage(text: string) {
-  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+  const res = await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ chat_id: CHAT_ID, text, parse_mode: 'Markdown' }),
   });
+  // Telegram 失敗也回 HTTP 200 給 trigger，只能靠 body.ok 判斷；不記 URL（含 token）
+  const body = await res.json().catch(() => null);
+  if (!body?.ok) {
+    console.error(`telegram sendMessage failed: status=${res.status} desc=${body?.description ?? 'n/a'} token_set=${!!BOT_TOKEN} chat_set=${!!CHAT_ID}`);
+  }
 }
 
 function fmt(n: number) {
