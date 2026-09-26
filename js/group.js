@@ -284,6 +284,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
     document.getElementById(`pane-${tab}`).classList.remove('hidden');
     syncFab();
+    refreshFromServer(); // 切分頁＝準備看或操作的時刻，背景同步別人的更新
   });
 });
 
