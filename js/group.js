@@ -1170,7 +1170,7 @@ function renderSettleResult(transfers) {
       const label = btn.textContent;
       btn.addEventListener('click', async () => {
         if (await copyToClipboard(p.copy)) {
-          btn.textContent = `已複製 ${p.copy}`;
+          btn.textContent = '✓ 已複製'; // 內容對不對由帳號主人存檔前的預覽確認，這裡只回報成功
           setTimeout(() => { btn.textContent = label; }, 2000);
         } else {
           prompt('請手動複製：', p.copy);
