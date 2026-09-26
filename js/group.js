@@ -642,6 +642,10 @@ function openMyStatement() {
 }
 
 document.getElementById('btn-my-statement').addEventListener('click', openMyStatement);
+document.getElementById('btn-set-payment').addEventListener('click', () => {
+  document.querySelector('.tab-btn[data-tab="settle"]').click();
+  startPaymentEdit(myId);
+});
 document.getElementById('btn-statement-close').addEventListener('click', () => {
   modalStatement.classList.remove('open');
   modalStatement.classList.add('hidden');
@@ -1071,6 +1075,14 @@ function parsePaymentInfo(text) {
   });
 }
 
+// 消費分頁的提醒：我還有待收款、卻沒設定收款方式
+function renderPayReminder(transfers) {
+  const me = group.members.find(m => m.id === myId);
+  const waiting = !!me && transfers.some(t => t.to_id === myId
+    && !group.paid_transfers[`${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`]);
+  document.getElementById('my-pay-reminder').classList.toggle('hidden', !(waiting && !(me.payment_info || '').trim()));
+}
+
 function renderSettleResult(transfers) {
   const container = document.getElementById('settle-result');
   container.innerHTML = '';
@@ -1080,6 +1092,7 @@ function renderSettleResult(transfers) {
   Object.keys(group.paid_transfers || {})
     .filter(k => !validKeys.has(k))
     .forEach(k => delete group.paid_transfers[k]);
+  renderPayReminder(transfers);
   const btn = document.getElementById('btn-save-settlement');
 
   if (!group.expenses.length) {
@@ -1149,6 +1162,7 @@ function renderSettleResult(transfers) {
           ${p.copy ? `<button type="button" class="pay-copy flex-shrink-0 text-sm px-3 py-1 rounded-full border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100 transition" data-idx="${i}">${p.bank ? '複製帳號' : '複製'}</button>` : ''}
         </div>`).join('')}
       </div>` : ''}
+      ${!paid && !t.payment_info ? `<div class="mt-2 text-sm text-amber-700">${t.to_id === myId ? '你' : esc(t.to_name)}尚未設定收款方式</div>` : ''}
     `;
     div.querySelectorAll('.pay-copy').forEach(btn => {
       const p = payRows[btn.dataset.idx];
@@ -1263,12 +1277,42 @@ document.getElementById('btn-save-settlement').addEventListener('click', async e
 });
 
 // ── 收款設定 ──
+// 收款設定平常只顯示，按「編輯」才能改（避免滑頁面誤觸、失焦就存）
+let editingPaymentId = null;
+let paymentDraft = '';
+const CLS_PAY_NAME = 'text-sm font-medium text-gray-700 w-14 flex-shrink-0 truncate';
+const CLS_PAY_BTN  = 'text-sm px-3 py-1.5 rounded-full border transition';
+
+function startPaymentEdit(memberId) {
+  const member = group.members.find(m => m.id === memberId);
+  if (!member) return;
+  editingPaymentId = memberId;
+  paymentDraft = member.payment_info || '';
+  renderPaymentSettings();
+  const input = document.getElementById('input-payment-edit');
+  input?.focus();
+  input?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+}
+
+function renderPaymentPreview(el, value) {
+  el.innerHTML = '';
+  const rows = parsePaymentInfo(value);
+  if (!rows.length) { el.textContent = value.trim() ? '' : '清空後結算頁不會顯示收款方式'; return; }
+  rows.forEach(p => {
+    const line = document.createElement('div');
+    line.className = 'truncate';
+    line.textContent = p.copy ? `${p.bank ? '複製帳號' : '複製'}將會是：${p.copy}` : `「${p.text}」沒有可複製的內容`;
+    el.appendChild(line);
+  });
+}
+
 function renderPaymentSettings() {
   const container = document.getElementById('payment-list');
   container.innerHTML = '';
   if (!group.members.length) {
     container.innerHTML = `<p class="text-gray-500 text-sm">尚無成員</p>`; return;
   }
+  if (editingPaymentId && !group.members.some(m => m.id === editingPaymentId)) editingPaymentId = null;
   const transfers = calcSettlement();
   const creditorIds = [...new Set(transfers.map(t => t.to_id))];
   const targets = group.expenses.length && creditorIds.length
@@ -1276,32 +1320,81 @@ function renderPaymentSettings() {
     : group.members;
   targets.forEach(member => {
     const row = document.createElement('div');
-    row.className = 'flex items-center gap-3 py-2 border-b border-gray-50 last:border-0';
+    row.className = 'py-2 border-b border-gray-50 last:border-0';
+    const top = document.createElement('div');
+    top.className = 'flex items-center gap-3';
     const name = document.createElement('span');
-    name.className = 'text-sm font-medium text-gray-700 w-14 flex-shrink-0';
+    name.className = CLS_PAY_NAME;
     name.textContent = member.name;
+    top.appendChild(name);
+    row.appendChild(top);
+
+    if (member.id !== editingPaymentId) {
+      const info = document.createElement('div');
+      info.className = 'flex-1 min-w-0 text-sm';
+      const segs = parsePaymentInfo(member.payment_info || '');
+      if (segs.length) {
+        info.classList.add('text-gray-700', 'break-all');
+        segs.forEach(p => { const d = document.createElement('div'); d.textContent = p.text; info.appendChild(d); });
+      } else {
+        info.classList.add('text-gray-500');
+        info.textContent = '未設定';
+      }
+      const edit = document.createElement('button');
+      edit.type = 'button';
+      edit.className = `${CLS_PAY_BTN} flex-shrink-0 border-blue-200 text-blue-600 hover:bg-blue-50`;
+      edit.textContent = segs.length ? '編輯' : '設定';
+      edit.addEventListener('click', () => startPaymentEdit(member.id));
+      top.append(info, edit);
+      container.appendChild(row);
+      return;
+    }
+
     const input = document.createElement('input');
     input.type = 'text';
-    input.className = 'flex-1 text-base px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 focus:bg-white transition';
-    input.value = member.payment_info || '';
+    input.id = 'input-payment-edit';
+    input.className = 'flex-1 min-w-0 text-base px-3 py-2 bg-white border border-blue-400 rounded-xl focus:outline-none transition';
+    input.value = paymentDraft;
     input.placeholder = '822 1234567890 / LINE Pay：abc';
-    const _origPaymentInfo = member.payment_info || '';
-    input.addEventListener('blur', async () => {
-      const newVal = input.value.trim();
-      if (newVal === _origPaymentInfo) return;
-      member.payment_info = newVal;
-      try {
-        await saveGroup(group);
+    top.appendChild(input);
+
+    const preview = document.createElement('div');
+    preview.className = 'pl-[4.25rem] mt-1.5 text-sm text-gray-500';
+    renderPaymentPreview(preview, paymentDraft);
+    input.addEventListener('input', () => { paymentDraft = input.value; renderPaymentPreview(preview, paymentDraft); });
+
+    const actions = document.createElement('div');
+    actions.className = 'pl-[4.25rem] mt-2 flex justify-end gap-2';
+    const cancel = document.createElement('button');
+    cancel.type = 'button';
+    cancel.className = `${CLS_PAY_BTN} border-gray-200 text-gray-600 hover:bg-gray-50`;
+    cancel.textContent = '取消';
+    cancel.addEventListener('click', () => { editingPaymentId = null; renderPaymentSettings(); });
+    const save = document.createElement('button');
+    save.type = 'button';
+    save.className = `${CLS_PAY_BTN} border-blue-600 bg-blue-600 text-white hover:bg-blue-700`;
+    save.textContent = '儲存';
+    save.addEventListener('click', async e => {
+      await guardedAction(e.currentTarget, async () => {
+        const newVal = paymentDraft.trim();
+        const prev = member.payment_info || '';
+        if (newVal === prev) { editingPaymentId = null; renderPaymentSettings(); return; }
+        member.payment_info = newVal;
+        try {
+          await saveGroup(group);
+        } catch (err) {
+          member.payment_info = prev;
+          await handleSaveError(err); // 衝突時會重畫，草稿與編輯狀態保留
+          return;
+        }
+        editingPaymentId = null;
         renderSettleResult(calcSettlement());
-        renderStatusCard();
-      } catch (err) {
-        member.payment_info = _origPaymentInfo;
-        input.value = _origPaymentInfo;
-        await handleSaveError(err);
-      }
+        renderPaymentSettings();
+      });
     });
-    imeEnter(input, () => input.blur());
-    row.append(name, input);
+    imeEnter(input, () => save.click());
+    actions.append(cancel, save);
+    row.append(preview, actions);
     container.appendChild(row);
   });
 }
