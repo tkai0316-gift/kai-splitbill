@@ -1,4 +1,4 @@
-import { getGroup, saveGroup, uuid, guardedAction } from './db.js';
+import { getGroup, saveGroup, fetchLatest, ConflictError, uuid, guardedAction } from './db.js';
 import { esc, safeParse } from './utils.js';
 
 const _togglingTransfers = new Set();
@@ -172,21 +172,26 @@ const params = new URLSearchParams(location.search);
 const CODE   = params.get('code')?.toUpperCase();
 if (!CODE) { location.href = 'index.html'; throw 0; }
 
-const group = await getGroup(CODE);
-if (!group) {
+function renderFatal(icon, title, msg) {
   document.body.innerHTML = `
     <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:1.5rem;background:#f9fafb;font-family:Inter,sans-serif">
-      <div style="font-size:3rem;margin-bottom:1rem">🔒</div>
-      <h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin-bottom:0.5rem">群組無法存取</h2>
-      <p style="font-size:0.875rem;color:#6b7280">此群組已不存在、已被刪除，或分享已關閉</p>
+      <div style="font-size:3rem;margin-bottom:1rem">${icon}</div>
+      <h2 style="font-size:1.25rem;font-weight:700;color:#111827;margin-bottom:0.5rem">${title}</h2>
+      <p style="font-size:0.875rem;color:#6b7280">${msg}</p>
       <p style="font-size:0.75rem;color:#9ca3af;margin-top:0.75rem;font-family:monospace">${esc(CODE)}</p>
     </div>`;
-  throw 0;
 }
 
-if (!group.paid_transfers) group.paid_transfers = {};
-if (!group.settlements) group.settlements = [];
-if (group.locked === undefined) group.locked = false;
+const group = await getGroup(CODE).catch(() => undefined); // undefined＝連線失敗，null＝查無群組
+if (group === undefined) { renderFatal('⚠️', '連線失敗', '請檢查網路後重新整理頁面'); throw 0; }
+if (!group) { renderFatal('🔒', '群組無法存取', '此群組已不存在、已被刪除，或分享已關閉'); throw 0; }
+
+function normalizeGroup() {
+  if (!group.paid_transfers) group.paid_transfers = {};
+  if (!group.settlements) group.settlements = [];
+  if (group.locked === undefined) group.locked = false;
+}
+normalizeGroup();
 
 // 記錄最近開啟的群組
 ;(function saveRecent() {
@@ -201,7 +206,7 @@ if (group.locked === undefined) group.locked = false;
 function applyLockState() {
   const locked = group.locked;
   document.getElementById('locked-banner').classList.toggle('hidden', !locked);
-  document.getElementById('btn-fab').classList.toggle('hidden', locked);
+  syncFab();
   if (locked) document.getElementById('member-input-area').classList.add('hidden');
   renderMembers();
   renderExpenseCards();
@@ -215,17 +220,19 @@ document.getElementById('btn-unlock').addEventListener('click', async e => {
       await saveGroup(group);
     } catch (err) {
       group.locked = true;
-      await showAlert('儲存失敗：' + err.message);
+      await handleSaveError(err);
       return;
     }
     applyLockState();
   });
 });
 
-document.title = `${group.name} ｜ 帳務總覽`;
-const _nameEl = document.getElementById('group-name');
-_nameEl.textContent = `${group.name} ｜ 帳務總覽`;
-_nameEl.style.fontSize = group.name.length <= 5 ? '1.1rem' : group.name.length <= 12 ? '0.9rem' : '0.8rem';
+function renderHeader() {
+  document.title = `${group.name} ｜ 帳務總覽`;
+  const nameEl = document.getElementById('group-name');
+  nameEl.textContent = `${group.name} ｜ 帳務總覽`;
+  nameEl.style.fontSize = group.name.length <= 5 ? '1.1rem' : group.name.length <= 12 ? '0.9rem' : '0.8rem';
+}
 
 // ── 分享 ──
 const shareURL = `${location.origin}${location.pathname}?code=${CODE}`;
@@ -257,10 +264,17 @@ document.getElementById('btn-copy').addEventListener('click', async () => {
 
 // ── Tab 切換 ──
 const fab = document.getElementById('btn-fab');
+let activeTab = 'expense';
+
+// FAB 只在「消費」分頁且未鎖定時出現
+function syncFab() {
+  fab.classList.toggle('hidden', activeTab !== 'expense' || group.locked);
+}
 
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     const tab = btn.dataset.tab;
+    activeTab = tab;
     document.querySelectorAll('.tab-btn').forEach(b => {
       const active = b === btn;
       b.className = `tab-btn flex-1 py-3 text-base font-semibold border-b-[3px] -mb-px ${
@@ -269,7 +283,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     });
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.add('hidden'));
     document.getElementById(`pane-${tab}`).classList.remove('hidden');
-    fab.classList.toggle('hidden', tab !== 'expense');
+    syncFab();
   });
 });
 
@@ -312,7 +326,7 @@ async function openModal() {
     showIdentityPicker(() => {
       renderExpenseForm();
       if (!editingExpenseId) {
-        document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+        document.getElementById('input-date').value = todayLocal();
         const ps = document.getElementById('select-payer');
         if (ps.querySelector(`option[value="${myId}"]`)) ps.value = myId;
       }
@@ -323,7 +337,7 @@ async function openModal() {
   }
   renderExpenseForm();
   if (!editingExpenseId) {
-    document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+    document.getElementById('input-date').value = todayLocal();
     const ps = document.getElementById('select-payer');
     if (myId && ps.querySelector(`option[value="${myId}"]`)) ps.value = myId;
   }
@@ -332,6 +346,8 @@ async function openModal() {
 }
 
 function closeModal() {
+  // 焦點留在隱藏的輸入框會讓 isIdle 一直判定「正在輸入」，切回頁面的同步就不會跑
+  if (modal.contains(document.activeElement)) document.activeElement.blur();
   modal.classList.remove('open');
   clearExpenseForm();
 }
@@ -427,7 +443,7 @@ function renderMembers() {
             group.members = prevMembers;
             group.last_action = prevAction;
             if (wasMe) { myId = member.id; localStorage.setItem(IDENTITY_KEY, myId); }
-            await showAlert('儲存失敗：' + err.message);
+            await handleSaveError(err);
             renderMembers();
             return;
           }
@@ -496,7 +512,7 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
     } catch (err) {
       group.members.pop();
       group.last_action = prevAction;
-      await showAlert('儲存失敗：' + err.message);
+      await handleSaveError(err);
       return;
     }
     input.value = '';
@@ -515,6 +531,12 @@ document.getElementById('input-member-name').addEventListener('blur', e => {
 });
 
 // ── 格式化 ──
+// 手機本地日期（toISOString 是 UTC，台灣 00:00–07:59 會變成前一天）
+function todayLocal() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
 function fmt(n) {
   return Number(n).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 }
@@ -712,7 +734,7 @@ otherInput.addEventListener('change', () => {
   _otherCurrencyTimer = setTimeout(() => applyOtherCurrency(val), 400);
 });
 
-document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+document.getElementById('input-date').value = todayLocal();
 
 // ── 消費 CRUD ──
 let editingExpenseId = null;
@@ -824,9 +846,10 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   let revert;
   if (editingExpenseId) {
     const idx = group.expenses.findIndex(e => e.id === editingExpenseId);
-    const prevExpense = idx !== -1 ? group.expenses[idx] : null;
-    if (idx !== -1) group.expenses[idx] = { ...group.expenses[idx], ...expenseData };
-    revert = () => { if (idx !== -1) group.expenses[idx] = prevExpense; };
+    if (idx === -1) { closeModal(); await showAlert('這筆消費已被刪除'); return; }
+    const prevExpense = group.expenses[idx];
+    group.expenses[idx] = { ...prevExpense, ...expenseData };
+    revert = () => { group.expenses[idx] = prevExpense; };
     group.last_action = { type: 'edit_expense', actor: myName(), title, amount, currency, exchange_rate };
   } else {
     group.expenses.push({ id: uuid(), ...expenseData, created_at: new Date().toISOString() });
@@ -841,7 +864,7 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
   } catch (err) {
     revert();
     group.last_action = prevAction;
-    await showAlert('儲存失敗：' + err.message); // modal 保持開啟，輸入不丟失
+    await handleSaveError(err); // modal 保持開啟，輸入不丟失
     return;
   }
   closeModal();
@@ -855,7 +878,7 @@ document.getElementById('btn-add-expense').addEventListener('click', async e => 
 function clearExpenseForm() {
   document.getElementById('input-title').value = '';
   document.getElementById('input-amount').value = '';
-  document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+  document.getElementById('input-date').value = todayLocal();
   const ps = document.getElementById('select-payer');
   if (myId && ps.querySelector(`option[value="${myId}"]`)) ps.value = myId;
   document.querySelectorAll('#participant-checkboxes input').forEach(cb => cb.checked = true);
@@ -979,7 +1002,7 @@ function renderExpenseCards(highlightId = null) {
           } catch (err) {
             group.expenses = prevExpenses;
             group.last_action = prevAction;
-            await showAlert('儲存失敗：' + err.message);
+            await handleSaveError(err);
             return;
           }
           renderExpenseCards();
@@ -1029,6 +1052,23 @@ function calcSettlement() {
     if (d.bal >= 0) debtors.shift();
   }
   return transfers;
+}
+
+// 收款資訊切段：一段一種方式，各自決定複製什麼
+// 銀行段（3 碼代碼＋10–16 碼帳號）只複製帳號純數字；其他段取冒號後，或去掉開頭標籤（中文、LINE Pay、ID…）
+const PAY_LABEL = /^(?:[\u3400-\u9fff]+|(?:line\s*pay|jko\s*pay|jko|line|id)(?![a-z0-9])|\s+)+/i;
+function parsePaymentInfo(text) {
+  return String(text).split(/[\n/、，,;；]+/).map(s => s.trim()).filter(Boolean).map(seg => {
+    for (const m of seg.matchAll(/(?:^|\D)(\d{3})(?!\d)/g)) {
+      const run = seg.slice(m.index + m[0].length).match(/^\D*([\d\s-]+)/);
+      const acct = run ? run[1].replace(/\D/g, '') : '';
+      if (acct.length >= 10 && acct.length <= 16) return { text: seg, copy: acct, bank: true };
+    }
+    const colon = seg.match(/[:：]\s*(.+)$/);
+    let value = colon ? colon[1].trim() : seg.replace(PAY_LABEL, '').trim();
+    if (/^[\d\s-]+$/.test(value)) value = value.replace(/\D/g, '');
+    return { text: seg, copy: value, bank: false };
+  });
 }
 
 function renderSettleResult(transfers) {
@@ -1087,22 +1127,41 @@ function renderSettleResult(transfers) {
     const key = `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`;
     const paid = !!group.paid_transfers[key];
     const mine = isMine(t);
+    const payRows = t.payment_info && !paid ? parsePaymentInfo(t.payment_info) : [];
     const div = document.createElement('div');
-    div.className = `flex items-center justify-between p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'} ${mine ? 'border-l-4 border-l-blue-500' : ''} ${myId && !mine ? 'opacity-60' : ''}`;
+    div.className = `p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'} ${mine ? 'border-l-4 border-l-blue-500' : ''} ${myId && !mine ? 'opacity-60' : ''}`;
     div.innerHTML = `
-      <div>
+      <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-sm ${paid ? 'text-gray-500' : ''}">
           ${nameHtml(t.from_id, t.from_name)}
           <span class="text-base ${paid ? '' : 'text-emerald-500'}">→</span>
           ${nameHtml(t.to_id, t.to_name)}
         </div>
-        ${t.payment_info && !paid ? `<div class="text-sm text-gray-500 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
+        <div class="flex items-center gap-2 flex-shrink-0">
+          <span class="text-lg font-bold ${paid ? 'text-gray-500 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
+          <button class="transfer-toggle text-sm px-3 py-1.5 rounded-full border transition ${paid ? 'bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200' : 'border-emerald-400 text-emerald-600 hover:bg-emerald-100'}">${paid ? '撤銷' : '標記已付'}</button>
+        </div>
       </div>
-      <div class="flex items-center gap-2 flex-shrink-0">
-        <span class="text-lg font-bold ${paid ? 'text-gray-500 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
-        <button class="transfer-toggle text-sm px-3 py-1.5 rounded-full border transition ${paid ? 'bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200' : 'border-emerald-400 text-emerald-600 hover:bg-emerald-100'}">${paid ? '撤銷' : '標記已付'}</button>
-      </div>
+      ${payRows.length ? `<div class="mt-2 pt-2 border-t border-emerald-100 space-y-1.5">
+        <div class="text-xs text-gray-500">收款方式</div>
+        ${payRows.map((p, i) => `<div class="flex items-center justify-between gap-2">
+          <span class="text-sm text-gray-700 break-all min-w-0">${esc(p.text)}</span>
+          ${p.copy ? `<button type="button" class="pay-copy flex-shrink-0 text-sm px-3 py-1 rounded-full border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100 transition" data-idx="${i}">${p.bank ? '複製帳號' : '複製'}</button>` : ''}
+        </div>`).join('')}
+      </div>` : ''}
     `;
+    div.querySelectorAll('.pay-copy').forEach(btn => {
+      const p = payRows[btn.dataset.idx];
+      const label = btn.textContent;
+      btn.addEventListener('click', async () => {
+        if (await copyToClipboard(p.copy)) {
+          btn.textContent = `已複製 ${p.copy}`;
+          setTimeout(() => { btn.textContent = label; }, 2000);
+        } else {
+          prompt('請手動複製：', p.copy);
+        }
+      });
+    });
     div.querySelector('.transfer-toggle').addEventListener('click', async () => {
       if (_togglingTransfers.has(key)) return;
       _togglingTransfers.add(key);
@@ -1115,7 +1174,7 @@ function renderSettleResult(transfers) {
         renderPaymentSettings();
       } catch (err) {
         if (wasPaid) { group.paid_transfers[key] = true; } else { delete group.paid_transfers[key]; }
-        await showAlert('操作失敗：' + err.message);
+        await handleSaveError(err, '操作失敗：');
         renderSettleResult(calcSettlement());
         renderPaymentSettings();
       } finally {
@@ -1195,7 +1254,7 @@ document.getElementById('btn-save-settlement').addEventListener('click', async e
       if (transfers.length) group.settlements.pop();
       group.locked = false;
       group.last_action = prevAction;
-      await showAlert('儲存失敗：' + err.message);
+      await handleSaveError(err);
       return;
     }
     applyLockState();
@@ -1225,7 +1284,7 @@ function renderPaymentSettings() {
     input.type = 'text';
     input.className = 'flex-1 text-base px-3 py-2 bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-blue-400 focus:bg-white transition';
     input.value = member.payment_info || '';
-    input.placeholder = 'LINE Pay / 銀行帳號 / 街口';
+    input.placeholder = '822 1234567890 / LINE Pay：abc';
     const _origPaymentInfo = member.payment_info || '';
     input.addEventListener('blur', async () => {
       const newVal = input.value.trim();
@@ -1238,7 +1297,7 @@ function renderPaymentSettings() {
       } catch (err) {
         member.payment_info = _origPaymentInfo;
         input.value = _origPaymentInfo;
-        await showAlert('儲存失敗：' + err.message);
+        await handleSaveError(err);
       }
     });
     imeEnter(input, () => input.blur());
@@ -1247,9 +1306,57 @@ function renderPaymentSettings() {
   });
 }
 
+// ── 同步 ──
+function renderAll() {
+  renderHeader();
+  applyLockState();
+  renderExpenseForm();
+  renderCustomInputs(collectCustomAmounts());
+  renderStatusCard();
+  renderSettlementHistory();
+  renderPaymentSettings();
+}
+
+// 用伺服器最新資料整包換掉 group（同一個物件，各處引用不失效）
+function replaceGroup(fresh) {
+  Object.keys(group).forEach(k => delete group[k]);
+  Object.assign(group, fresh);
+  normalizeGroup();
+  if (myId && !group.members.some(m => m.id === myId)) { myId = null; localStorage.removeItem(IDENTITY_KEY); }
+  // 群組被鎖定、或編輯中的消費被刪除 → 表單已無意義
+  const editingGone = editingExpenseId && !group.expenses.some(e => e.id === editingExpenseId);
+  if (modal.classList.contains('open') && (group.locked || editingGone)) closeModal();
+  renderAll();
+}
+
+// 存檔失敗統一出口。呼叫端必須先 revert 自己的改動再呼叫（衝突時會整包換成最新資料）
+async function handleSaveError(err, prefix = '儲存失敗：') {
+  if (!(err instanceof ConflictError)) { await showAlert(prefix + err.message); return; }
+  let fresh = null;
+  try { fresh = await fetchLatest(CODE); } catch { /* 下面統一提示 */ }
+  if (!fresh) { await showAlert('有人剛更新了資料，但載入最新內容失敗，請重新整理頁面'); return; }
+  replaceGroup(fresh);
+  await showAlert('有人剛更新了資料，已載入最新內容，請確認後再操作一次');
+}
+
+// 切回頁面時同步別人的更新；有視窗開著或正在輸入就跳過，交給存檔時的衝突處理
+const isIdle = () => !document.querySelector('.modal-overlay.open')
+  && !document.activeElement?.matches('input, textarea, select');
+let _refreshing = false;
+async function refreshFromServer() {
+  if (_refreshing || !isIdle()) return;
+  _refreshing = true;
+  try {
+    const fresh = await fetchLatest(CODE, { onlyIfNewer: true, canApply: isIdle });
+    if (fresh) replaceGroup(fresh);
+  } catch { /* 背景同步失敗不打擾，存檔時會再處理 */ } finally {
+    _refreshing = false;
+  }
+}
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') refreshFromServer();
+});
+window.addEventListener('pageshow', e => { if (e.persisted) refreshFromServer(); });
+
 // ── 初始化 ──
-applyLockState();
-renderExpenseForm();
-renderStatusCard();
-renderSettlementHistory();
-renderPaymentSettings();
+renderAll();

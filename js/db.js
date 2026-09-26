@@ -6,13 +6,12 @@ const supabase = createClient(
 );
 
 let currentVersion = 0;
+let saveSeq = 0;                 // 每次存檔 +1：讀取期間若有存檔，讀回的資料可能比記憶體舊，要丟棄
+const pendingSaves = new Set();
 
-function showConflictToast() {
-  const el = document.createElement('div');
-  el.textContent = '資料已被他人更新，即將重新載入…';
-  el.style.cssText = 'position:fixed;bottom:24px;right:24px;padding:10px 18px;border-radius:8px;font-size:.85rem;z-index:9999;color:#fff;background:#dc2626;font-family:Outfit,sans-serif';
-  document.body.appendChild(el);
-  setTimeout(() => location.reload(), 2000);
+// 版本衝突（別人剛存過）：呼叫端照一般失敗處理 revert，再重抓最新資料
+export class ConflictError extends Error {
+  constructor() { super('有人剛更新了資料'); this.name = 'ConflictError'; }
 }
 
 export function uuid() {
@@ -23,26 +22,48 @@ export function uuid() {
   });
 }
 
-export async function getGroup(code) {
+async function fetchRow(code) {
   // 2026-09-18 改走 SECURITY DEFINER RPC（ADR-013 Tier D）：主表不再對 anon 開放，防不帶 share_code 的枚舉
-  const { data } = await supabase
+  const { data, error } = await supabase
     .rpc('splitbill_get', { p_code: code })
     .maybeSingle();
-  if (data) currentVersion = data.version ?? 0;
-  return data?.data ?? null;
+  if (error && error.code !== 'PGRST116') throw new Error(error.message); // PGRST116＝查無此代碼，不算連線錯誤
+  return data ?? null;
+}
+
+// 連線失敗會 throw；查無此群組回 null
+export async function getGroup(code) {
+  const row = await fetchRow(code);
+  if (row) currentVersion = row.version ?? 0;
+  return row?.data ?? null;
+}
+
+// 重抓最新版：先等自己送出中的存檔落地，抓取期間若又有存檔就丟棄結果（避免舊資料蓋回記憶體）。
+// onlyIfNewer：版本沒變回 null；canApply：抓回後呼叫端已不能套用（例如正在輸入）就回 null 且不動版本號
+export async function fetchLatest(code, { onlyIfNewer = false, canApply = () => true } = {}) {
+  await Promise.allSettled([...pendingSaves]);
+  const seq = saveSeq;
+  const row = await fetchRow(code);
+  if (!row || seq !== saveSeq || pendingSaves.size || !canApply()) return null;
+  const version = row.version ?? 0;
+  if (onlyIfNewer && version === currentVersion) return null;
+  currentVersion = version;
+  return row.data;
 }
 
 export async function saveGroup(group) {
-  const { data, error } = await supabase
-    .rpc('splitbill_save', { p_code: group.share_code, p_data: group, p_version: currentVersion });
+  saveSeq++;
+  // Promise.resolve 包一層：supabase builder 每次 then 都會重送請求，fetchLatest 的 allSettled 不能再觸發一次
+  const req = Promise.resolve(supabase
+    .rpc('splitbill_save', { p_code: group.share_code, p_data: group, p_version: currentVersion }));
+  pendingSaves.add(req);
+  let res;
+  try { res = await req; } finally { pendingSaves.delete(req); }
 
-  // 網路 / RLS 錯誤 → throw 給呼叫端 revert；只有「真的被別人改過」才走衝突重載
-  if (error) throw new Error(error.message);
-  if (!data?.length) {
-    showConflictToast();
-    return;
-  }
-  currentVersion = data[0].version;
+  // 網路 / RLS 錯誤 → throw 給呼叫端 revert；回空陣列＝版本已被別人改過
+  if (res.error) throw new Error(res.error.message);
+  if (!res.data?.length) throw new ConflictError();
+  currentVersion = res.data[0].version;
 }
 
 export async function createGroup(name) {

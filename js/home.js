@@ -76,6 +76,8 @@ btnJoin.addEventListener('click', async () => {
       return;
     }
     location.href = `group.html?code=${code}`;
+  } catch {
+    await showAlert('連線失敗，請檢查網路後再試');
   } finally {
     _joining = false;
     btnJoin.disabled = false;
