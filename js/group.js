@@ -291,6 +291,7 @@ function showIdentityPicker(callback) {
       modalIdentity.classList.remove('open');
       renderMembers();
       renderStatusCard();
+      renderSettleResult(calcSettlement());
       if (callback) callback();
     });
     chipsEl.appendChild(btn);
@@ -398,6 +399,7 @@ function renderMembers() {
       localStorage.setItem(IDENTITY_KEY, myId);
       renderMembers();
       renderStatusCard();
+      renderSettleResult(calcSettlement());
     });
     chip.appendChild(nameBtn);
 
@@ -1054,19 +1056,27 @@ function renderSettleResult(transfers) {
     </div>
     ${allDone ? '<p class="text-xs text-emerald-600 font-semibold mt-1">✓ 全部結清！</p>' : `<p class="text-xs text-gray-500 mt-1">待結清 $${fmt(totalAmt - paidAmt)}</p>`}
   `;
+  container.appendChild(renderMySettleSummary(transfers));
   container.appendChild(bar);
 
-  transfers.forEach(t => {
+  const isMine = t => !!myId && (t.from_id === myId || t.to_id === myId);
+  const sorted = myId ? [...transfers.filter(isMine), ...transfers.filter(t => !isMine(t))] : transfers;
+  const nameHtml = (id, name) => id === myId
+    ? '<span class="font-semibold text-blue-700">你</span>'
+    : `<span class="font-semibold">${esc(name)}</span>`;
+
+  sorted.forEach(t => {
     const key = `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`;
     const paid = !!group.paid_transfers[key];
+    const mine = isMine(t);
     const div = document.createElement('div');
-    div.className = `flex items-center justify-between p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'}`;
+    div.className = `flex items-center justify-between p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'} ${mine ? 'border-l-4 border-l-blue-500' : ''} ${myId && !mine ? 'opacity-60' : ''}`;
     div.innerHTML = `
       <div>
         <div class="flex items-center gap-1.5 text-sm ${paid ? 'text-gray-500' : ''}">
-          <span class="font-semibold">${esc(t.from_name)}</span>
+          ${nameHtml(t.from_id, t.from_name)}
           <span class="text-base ${paid ? '' : 'text-emerald-500'}">→</span>
-          <span class="font-semibold">${esc(t.to_name)}</span>
+          ${nameHtml(t.to_id, t.to_name)}
         </div>
         ${t.payment_info && !paid ? `<div class="text-xs text-gray-500 mt-0.5">收款：${esc(t.payment_info)}</div>` : ''}
       </div>
@@ -1098,6 +1108,37 @@ function renderSettleResult(transfers) {
   });
 
   btn.classList.toggle('hidden', group.locked);
+}
+
+// 結算頁頂部「我的應付／應收」摘要；未認領身份時只給提示
+function renderMySettleSummary(transfers) {
+  const card = document.createElement('div');
+  if (!myId || !myName()) {
+    card.className = 'mb-3 text-xs text-gray-500';
+    card.textContent = '認領身份後可看到你的應付／應收';
+    return card;
+  }
+  const isPaid = t => !!group.paid_transfers[`${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`];
+  const mine = transfers.filter(t => t.from_id === myId || t.to_id === myId);
+  const out = mine.filter(t => t.from_id === myId && !isPaid(t));
+  const inc = mine.filter(t => t.to_id === myId && !isPaid(t));
+  const sum = arr => arr.reduce((s, t) => s + t.amount, 0);
+
+  if (out.length) {
+    card.className = 'mb-3 p-4 rounded-2xl bg-amber-50 border border-amber-200';
+    card.innerHTML = `
+      <div class="text-sm text-amber-800">你需要付 <span class="text-xl font-bold">$${fmt(sum(out))}</span></div>
+      <div class="text-xs text-amber-700 mt-0.5">給 ${out.map(t => `${esc(t.to_name)} $${fmt(t.amount)}`).join('、')}</div>`;
+  } else if (inc.length) {
+    card.className = 'mb-3 p-4 rounded-2xl bg-blue-50 border border-blue-200';
+    card.innerHTML = `
+      <div class="text-sm text-blue-800">你會收到 <span class="text-xl font-bold">$${fmt(sum(inc))}</span></div>
+      <div class="text-xs text-blue-700 mt-0.5">來自 ${inc.map(t => `${esc(t.from_name)} $${fmt(t.amount)}`).join('、')}</div>`;
+  } else {
+    card.className = 'mb-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-semibold text-emerald-600';
+    card.textContent = mine.length ? '✓ 你的部分已結清' : '✓ 你不需要付款或收款';
+  }
+  return card;
 }
 
 function renderSettlementHistory() {
