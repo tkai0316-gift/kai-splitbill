@@ -202,7 +202,7 @@ function applyLockState() {
   const locked = group.locked;
   document.getElementById('locked-banner').classList.toggle('hidden', !locked);
   document.getElementById('btn-fab').classList.toggle('hidden', locked);
-  document.getElementById('member-input-area').classList.toggle('hidden', locked);
+  if (locked) document.getElementById('member-input-area').classList.add('hidden');
   renderMembers();
   renderExpenseCards();
   renderSettleResult(calcSettlement());
@@ -458,6 +458,18 @@ function renderMembers() {
     chips.appendChild(badge);
   }
 
+  if (!group.locked) {
+    const addBtn = document.createElement('button');
+    addBtn.type = 'button';
+    addBtn.className = CLS_ADD_MEMBER;
+    addBtn.textContent = '＋新增';
+    addBtn.addEventListener('click', () => {
+      document.getElementById('member-input-area').classList.remove('hidden');
+      document.getElementById('input-member-name').focus();
+    });
+    chips.appendChild(addBtn);
+  }
+
   if (!myId && group.members.length) {
     const hint = document.createElement('span');
     hint.className = 'text-sm text-gray-500 self-center';
@@ -488,6 +500,7 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
       return;
     }
     input.value = '';
+    input.focus(); // 保持展開，方便連續新增
     membersExpanded = false;
     renderMembers();
     renderExpenseForm();
@@ -496,6 +509,10 @@ document.getElementById('btn-add-member').addEventListener('click', async e => {
 });
 
 imeEnter(document.getElementById('input-member-name'), () => document.getElementById('btn-add-member').click());
+// 空白時失焦即收起新增列
+document.getElementById('input-member-name').addEventListener('blur', e => {
+  if (!e.target.value.trim()) document.getElementById('member-input-area').classList.add('hidden');
+});
 
 // ── 格式化 ──
 function fmt(n) {
@@ -506,6 +523,7 @@ function fmt(n) {
 const CLS_SPLIT_ACTIVE   = 'px-3 py-1.5 bg-blue-600 text-white transition';
 const CLS_SPLIT_INACTIVE = 'px-3 py-1.5 text-gray-500 hover:bg-gray-50 transition';
 const CLS_FOLD_BADGE     = 'px-3 py-1 text-xs font-medium bg-gray-100 border border-gray-200 rounded-full text-gray-500 hover:text-gray-600 transition';
+const CLS_ADD_MEMBER     = 'px-3 py-1 text-sm font-medium border border-dashed border-blue-300 rounded-full text-blue-600 hover:bg-blue-50 transition';
 
 // ── 狀態卡 ──
 function renderStatusCard() {
