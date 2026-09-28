@@ -557,15 +557,8 @@ function renderStatusCard() {
   const statusMy = document.getElementById('status-my');
   if (myId) {
     const myPaid = group.expenses.filter(e => e.payer_id === myId).reduce((s, e) => s + Number(e.amount) * (Number(e.exchange_rate) || 1), 0);
-    const myOwed = group.expenses.filter(e => e.participant_ids.includes(myId)).reduce((s, e) => {
-      const twdAmt = Number(e.amount) * (Number(e.exchange_rate) || 1);
-      if (e.split_type === 'custom' && e.custom_amounts) {
-        return s + Number(e.custom_amounts[myId] || 0) * (Number(e.exchange_rate) || 1);
-      }
-      return s + twdAmt / e.participant_ids.length;
-    }, 0);
     document.getElementById('my-paid').textContent = `$${fmt(Math.round(myPaid))}`;
-    document.getElementById('my-owed').textContent = `$${fmt(Math.round(myOwed))}`;
+    document.getElementById('my-owed').textContent = `$${fmt(Math.round(myPaid) - myNet())}`; // 由淨額推回，跟結算對得上
     statusMy.classList.remove('hidden');
     statusMy.classList.add('flex');
   } else {
@@ -590,7 +583,6 @@ function openMyStatement() {
   const myPaid = group.expenses
     .filter(e => e.payer_id === myId)
     .reduce((s, e) => s + Number(e.amount) * (Number(e.exchange_rate) || 1), 0);
-  let myOwed = 0;
   let paidInList = 0;
   const listEl = document.getElementById('statement-list');
   listEl.innerHTML = myExpenses.length ? '' : '<p class="text-sm text-gray-500 text-center py-4">尚無消費記錄</p>';
@@ -608,7 +600,6 @@ function openMyStatement() {
     const isPayer = e.payer_id === myId;
     if (isPayer) paidInList += Number(e.amount) * rate;
     const payer = group.members.find(m => m.id === e.payer_id);
-    myOwed += share;
 
     const hasFx = e.currency && e.currency !== 'TWD';
     const row = document.createElement('div');
@@ -627,13 +618,13 @@ function openMyStatement() {
   });
 
   const paidForOthers = myPaid - paidInList;
-  const net = myPaid - myOwed;
+  const net = myNet();
   document.getElementById('statement-footer').innerHTML = `
     <div class="w-full">
       ${paidForOthers > 0 ? `<div class="flex justify-between text-sm text-gray-500 mb-1.5"><span>代墊他人（未列入清單）</span><span class="text-gray-500">+$${fmt(Math.round(paidForOthers))}</span></div>` : ''}
       <div class="flex justify-between items-center">
         <span class="text-sm text-gray-500">淨額</span>
-        <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(Math.round(net))}` : `需補 $${fmt(Math.round(-net))}`}</span>
+        <span class="text-base font-bold ${net >= 0 ? 'text-emerald-600' : 'text-red-500'}">${net >= 0 ? `可收 $${fmt(net)}` : `需補 $${fmt(-net)}`}</span>
       </div>
     </div>
   `;
@@ -1024,6 +1015,37 @@ function renderExpenseCards(highlightId = null) {
 
 // ── 結算演算法 ──
 function calcSettlement() {
+  // 已結束的群組以結束當下存的結算為準：大家是照那份金額轉帳，已付標記也綁著它（取整算法改版也不重算）
+  const snap = group.locked && group.settlements[group.settlements.length - 1];
+  if (snap) return snap.transfers.map(t => ({
+    ...t, payment_info: group.members.find(m => m.id === t.to_id)?.payment_info || '',
+  }));
+
+  const bal = calcBalances();
+  const ri = n => Math.round(n); // 整數
+  const creditors = group.members.filter(m => bal[m.id] > 0).map(m => ({ ...m, bal: bal[m.id] })).sort((a,b) => b.bal - a.bal);
+  const debtors   = group.members.filter(m => bal[m.id] < 0).map(m => ({ ...m, bal: bal[m.id] })).sort((a,b) => a.bal - b.bal);
+
+  const transfers = [];
+  while (creditors.length && debtors.length) {
+    const c = creditors[0], d = debtors[0];
+    const amount = ri(Math.min(c.bal, -d.bal));
+    if (amount > 0) transfers.push({ from_id: d.id, from_name: d.name, to_id: c.id, to_name: c.name, amount, payment_info: c.payment_info || '' });
+    c.bal = ri(c.bal - amount); d.bal = ri(d.bal + amount);
+    if (c.bal <= 0) creditors.shift();
+    if (d.bal >= 0) debtors.shift();
+  }
+  return transfers;
+}
+
+// 我的淨額（正＝可收、負＝需補），由轉帳推回，結算／明細／概覽卡三處數字才會一致
+function myNet(transfers = calcSettlement()) {
+  return transfers.reduce((s, t) => s + (t.to_id === myId ? t.amount : 0) - (t.from_id === myId ? t.amount : 0), 0);
+}
+
+// 各人淨額，以最大餘數法取整：先全部捨去，差的整數額依小數部分大到小各補 1（平手依成員順序），
+// 取整後合計仍等於原合計、每人誤差 < 1。不得改回付款人吸收或各自四捨五入（差額會集中到一人）
+function calcBalances() {
   const bal = {};
   group.members.forEach(m => { bal[m.id] = 0; });
   group.expenses.forEach(e => {
@@ -1041,22 +1063,15 @@ function calcSettlement() {
       });
     }
   });
-  Object.keys(bal).forEach(id => { bal[id] = Math.round(bal[id]); }); // 確保整數
-
-  const ri = n => Math.round(n); // 整數
-  const creditors = group.members.filter(m => bal[m.id] > 0).map(m => ({ ...m, bal: bal[m.id] })).sort((a,b) => b.bal - a.bal);
-  const debtors   = group.members.filter(m => bal[m.id] < 0).map(m => ({ ...m, bal: bal[m.id] })).sort((a,b) => a.bal - b.bal);
-
-  const transfers = [];
-  while (creditors.length && debtors.length) {
-    const c = creditors[0], d = debtors[0];
-    const amount = ri(Math.min(c.bal, -d.bal));
-    if (amount > 0) transfers.push({ from_id: d.id, from_name: d.name, to_id: c.id, to_name: c.name, amount, payment_info: c.payment_info || '' });
-    c.bal = ri(c.bal - amount); d.bal = ri(d.bal + amount);
-    if (c.bal <= 0) creditors.shift();
-    if (d.bal >= 0) debtors.shift();
-  }
-  return transfers;
+  const clean = id => Math.round(bal[id] * 1e6) / 1e6; // 消掉浮點雜訊，避免 2.9999999 被捨成 2
+  const out = {};
+  let floorSum = 0, rawSum = 0;
+  group.members.forEach(m => { const v = clean(m.id); out[m.id] = Math.floor(v); floorSum += out[m.id]; rawSum += v; });
+  group.members.map((m, i) => ({ id: m.id, i, frac: clean(m.id) - out[m.id] }))
+    .sort((a, b) => b.frac - a.frac || a.i - b.i)
+    .slice(0, Math.round(rawSum) - floorSum) // 合計通常為 0；成員被刪但消費還在時不為 0，以取整後的原合計為目標
+    .forEach(x => { out[x.id] += 1; });
+  return out;
 }
 
 // 收款資訊切段：一段一種方式，各自決定複製什麼
@@ -1128,109 +1143,190 @@ function renderSettleResult(transfers) {
     </div>
     ${allDone ? '<p class="text-sm text-emerald-600 font-semibold mt-1">✓ 全部結清！</p>' : `<p class="text-sm text-gray-500 mt-1">待結清 $${fmt(totalAmt - paidAmt)}</p>`}
   `;
-  container.appendChild(renderMySettleSummary(transfers));
+  // 已認領身份：用區塊顏色決定方向（琥珀＝你要付、藍＝你會收到），列內不靠箭頭
+  if (myId && myName()) {
+    renderMySettleBlock(container, transfers);
+    container.appendChild(bar);
+    renderOtherTransfers(container, transfers.filter(t => !isMyTransfer(t)));
+    btn.classList.toggle('hidden', group.locked);
+    return;
+  }
+
+  // 未認領：維持原本「A → B」卡片
+  const hint = document.createElement('div');
+  hint.className = 'mb-3 text-sm text-gray-500';
+  hint.textContent = '認領身份後可看到你的應付／應收';
+  container.appendChild(hint);
   container.appendChild(bar);
 
-  const isMine = t => !!myId && (t.from_id === myId || t.to_id === myId);
-  const sorted = myId ? [...transfers.filter(isMine), ...transfers.filter(t => !isMine(t))] : transfers;
-  const nameHtml = (id, name) => id === myId
-    ? '<span class="font-semibold text-blue-700">你</span>'
-    : `<span class="font-semibold">${esc(name)}</span>`;
-
-  sorted.forEach(t => {
-    const key = `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`;
-    const paid = !!group.paid_transfers[key];
-    const mine = isMine(t);
+  transfers.forEach(t => {
+    const paid = isTransferPaid(t);
     const payRows = t.payment_info && !paid ? parsePaymentInfo(t.payment_info) : [];
     const div = document.createElement('div');
-    div.className = `p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'} ${mine ? 'border-l-4 border-l-blue-500' : ''} ${myId && !mine ? 'opacity-60' : ''}`;
+    div.className = `p-4 rounded-2xl border transition ${paid ? 'bg-gray-50 border-gray-100' : 'bg-emerald-50 border-emerald-100'}`;
     div.innerHTML = `
       <div class="flex items-center justify-between gap-2">
         <div class="flex items-center gap-1.5 text-sm ${paid ? 'text-gray-500' : ''}">
-          ${nameHtml(t.from_id, t.from_name)}
+          <span class="font-semibold">${esc(t.from_name)}</span>
           <span class="text-base ${paid ? '' : 'text-emerald-500'}">→</span>
-          ${nameHtml(t.to_id, t.to_name)}
+          <span class="font-semibold">${esc(t.to_name)}</span>
         </div>
         <div class="flex items-center gap-2 flex-shrink-0">
           <span class="text-lg font-bold ${paid ? 'text-gray-500 line-through' : 'text-emerald-700'}">$${fmt(t.amount)}</span>
-          <button class="transfer-toggle text-sm px-3 py-1.5 rounded-full border transition ${paid ? 'bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200' : 'border-emerald-400 text-emerald-600 hover:bg-emerald-100'}">${paid ? '撤銷' : '標記已付'}</button>
+          ${transferToggleHtml(paid)}
         </div>
       </div>
-      ${payRows.length ? `<div class="mt-2 pt-2 border-t border-emerald-100 space-y-1.5">
-        <div class="text-xs text-gray-500">收款方式</div>
-        ${payRows.map((p, i) => `<div class="flex items-center justify-between gap-2">
-          <span class="text-sm text-gray-700 break-all min-w-0">${esc(p.text)}</span>
-          ${p.copy ? `<button type="button" class="pay-copy flex-shrink-0 text-sm px-3 py-1 rounded-full border border-emerald-300 text-emerald-700 bg-white hover:bg-emerald-100 transition" data-idx="${i}">${p.bank ? '複製帳號' : '複製'}</button>` : ''}
-        </div>`).join('')}
-      </div>` : ''}
-      ${!paid && !t.payment_info ? `<div class="mt-2 text-sm text-amber-700">${t.to_id === myId ? '你' : esc(t.to_name)}尚未設定收款方式</div>` : ''}
+      ${payRowsHtml(t, payRows, paid, 'border-emerald-100')}
     `;
-    div.querySelectorAll('.pay-copy').forEach(btn => {
-      const p = payRows[btn.dataset.idx];
-      const label = btn.textContent;
-      btn.addEventListener('click', async () => {
-        if (await copyToClipboard(p.copy)) {
-          btn.textContent = '✓ 已複製'; // 內容對不對由帳號主人存檔前的預覽確認，這裡只回報成功
-          setTimeout(() => { btn.textContent = label; }, 2000);
-        } else {
-          prompt('請手動複製：', p.copy);
-        }
-      });
-    });
-    div.querySelector('.transfer-toggle').addEventListener('click', async () => {
-      if (_togglingTransfers.has(key)) return;
-      _togglingTransfers.add(key);
-      const wasPaid = !!group.paid_transfers[key];
-      try {
-        if (wasPaid) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
-        group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
-        await saveGroup(group);
-        renderSettleResult(calcSettlement());
-        renderPaymentSettings();
-      } catch (err) {
-        if (wasPaid) { group.paid_transfers[key] = true; } else { delete group.paid_transfers[key]; }
-        await handleSaveError(err, '操作失敗：');
-        renderSettleResult(calcSettlement());
-        renderPaymentSettings();
-      } finally {
-        _togglingTransfers.delete(key);
-      }
-    });
+    bindPayCopy(div, payRows);
+    bindTransferToggle(div.querySelector('.transfer-toggle'), t);
     container.appendChild(div);
   });
 
   btn.classList.toggle('hidden', group.locked);
 }
 
-// 結算頁頂部「我的應付／應收」摘要；未認領身份時只給提示
-function renderMySettleSummary(transfers) {
-  const card = document.createElement('div');
-  if (!myId || !myName()) {
-    card.className = 'mb-3 text-sm text-gray-500';
-    card.textContent = '認領身份後可看到你的應付／應收';
-    return card;
-  }
-  const isPaid = t => !!group.paid_transfers[`${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`];
-  const mine = transfers.filter(t => t.from_id === myId || t.to_id === myId);
-  const out = mine.filter(t => t.from_id === myId && !isPaid(t));
-  const inc = mine.filter(t => t.to_id === myId && !isPaid(t));
-  const sum = arr => arr.reduce((s, t) => s + t.amount, 0);
+const transferKey = t => `${t.from_id}_${t.to_id}_${Math.round(t.amount * 100)}`;
+const isTransferPaid = t => !!group.paid_transfers[transferKey(t)];
+const isMyTransfer = t => !!myId && (t.from_id === myId || t.to_id === myId);
 
-  if (out.length) {
-    card.className = 'mb-3 p-4 rounded-2xl bg-amber-50 border border-amber-200';
-    card.innerHTML = `
-      <div class="text-sm text-amber-800">你需要付 <span class="text-xl font-bold">$${fmt(sum(out))}</span></div>
-      <div class="text-sm text-amber-700 mt-0.5">給 ${out.map(t => `${esc(t.to_name)} $${fmt(t.amount)}`).join('、')}</div>`;
-  } else if (inc.length) {
-    card.className = 'mb-3 p-4 rounded-2xl bg-blue-50 border border-blue-200';
-    card.innerHTML = `
-      <div class="text-sm text-blue-800">你會收到 <span class="text-xl font-bold">$${fmt(sum(inc))}</span></div>
-      <div class="text-sm text-blue-700 mt-0.5">來自 ${inc.map(t => `${esc(t.from_name)} $${fmt(t.amount)}`).join('、')}</div>`;
-  } else {
-    card.className = 'mb-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-semibold text-emerald-600';
-    card.textContent = mine.length ? '✓ 你的部分已結清' : '✓ 你不需要付款或收款';
+const CLS_TOGGLE_PAID   = 'transfer-toggle flex-shrink-0 text-sm px-3 py-1.5 rounded-full border transition bg-gray-100 border-gray-200 text-gray-400 hover:text-red-400 hover:border-red-200';
+const CLS_TOGGLE_UNPAID = 'transfer-toggle flex-shrink-0 text-sm px-3 py-1.5 rounded-full border transition border-emerald-400 text-emerald-600 hover:bg-emerald-100';
+function transferToggleHtml(paid, label = '標記已付') {
+  return `<button type="button" class="${paid ? CLS_TOGGLE_PAID : CLS_TOGGLE_UNPAID}">${paid ? '撤銷' : label}</button>`;
+}
+
+// 收款方式（付款方要看的帳號＋複製鈕）；未設定時提醒
+function payRowsHtml(t, payRows, paid, borderCls) {
+  if (paid) return '';
+  if (!t.payment_info) return `<div class="mt-2 text-sm text-amber-700">${t.to_id === myId ? '你' : esc(t.to_name)}尚未設定收款方式</div>`;
+  if (!payRows.length) return '';
+  return `<div class="mt-2 pt-2 border-t ${borderCls} space-y-1.5">
+    <div class="text-xs text-gray-500">收款方式</div>
+    ${payRows.map((p, i) => `<div class="flex items-center justify-between gap-2">
+      <span class="text-sm text-gray-700 break-all min-w-0">${esc(p.text)}</span>
+      ${p.copy ? `<button type="button" class="pay-copy flex-shrink-0 w-9 h-9 flex items-center justify-center rounded-full text-emerald-600 hover:bg-emerald-100 transition" data-idx="${i}" aria-label="${p.bank ? '複製帳號' : '複製'}">${ICON_COPY}</button>` : ''}
+    </div>`).join('')}
+  </div>`;
+}
+
+const ICON_COPY  = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2" stroke-width="2"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 15H4a1 1 0 01-1-1V4a1 1 0 011-1h10a1 1 0 011 1v1"/></svg>';
+const ICON_CHECK = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M5 13l4 4L19 7"/></svg>';
+
+function bindPayCopy(root, payRows) {
+  root.querySelectorAll('.pay-copy').forEach(btn => {
+    const p = payRows[btn.dataset.idx];
+    const label = btn.getAttribute('aria-label');
+    btn.addEventListener('click', async () => {
+      if (await copyToClipboard(p.copy)) {
+        // 內容對不對由帳號主人存檔前的預覽確認，這裡只回報成功
+        btn.innerHTML = ICON_CHECK;
+        btn.setAttribute('aria-label', '已複製');
+        setTimeout(() => { btn.innerHTML = ICON_COPY; btn.setAttribute('aria-label', label); }, 2000);
+      } else {
+        prompt('請手動複製：', p.copy);
+      }
+    });
+  });
+}
+
+function bindTransferToggle(button, t) {
+  const key = transferKey(t);
+  button.addEventListener('click', async () => {
+    if (_togglingTransfers.has(key)) return;
+    _togglingTransfers.add(key);
+    const wasPaid = !!group.paid_transfers[key];
+    try {
+      if (wasPaid) { delete group.paid_transfers[key]; } else { group.paid_transfers[key] = true; }
+      group.last_action = { type: 'toggle_transfer', actor: myName(), paid: !wasPaid, from: t.from_name, to: t.to_name, amount: t.amount };
+      await saveGroup(group);
+      renderSettleResult(calcSettlement());
+      renderPaymentSettings();
+    } catch (err) {
+      if (wasPaid) { group.paid_transfers[key] = true; } else { delete group.paid_transfers[key]; }
+      await handleSaveError(err, '操作失敗：');
+      renderSettleResult(calcSettlement());
+      renderPaymentSettings();
+    } finally {
+      _togglingTransfers.delete(key);
+    }
+  });
+}
+
+// 我的區塊：取代原本頂部摘要卡。同一人不會既付又收（2 萬組壓測驗證），所以只會出現琥珀或藍其中一塊
+function renderMySettleBlock(container, transfers) {
+  const out = transfers.filter(t => t.from_id === myId);
+  const mine = out.length ? out : transfers.filter(t => t.to_id === myId);
+  const iPay = out.length > 0;
+  const block = document.createElement('div');
+  if (!mine.length) {
+    block.className = 'mb-3 p-4 rounded-2xl bg-gray-50 border border-gray-200 text-sm font-semibold text-emerald-600';
+    block.textContent = '✓ 你不需要付款或收款';
+    container.appendChild(block);
+    return;
   }
-  return card;
+  const sum = arr => arr.reduce((s, t) => s + t.amount, 0);
+  const total = sum(mine);
+  const left = sum(mine.filter(t => !isTransferPaid(t)));
+  block.className = `mb-3 rounded-2xl border ${left === 0 ? 'bg-gray-50 border-gray-200' : iPay ? 'bg-amber-50 border-amber-200' : 'bg-blue-50 border-blue-200'}`;
+  block.innerHTML = `
+    <div class="px-4 pt-4 pb-1">
+      ${left === 0
+        ? '<div class="text-base font-semibold text-emerald-600">✓ 你的部分已結清</div>'
+        : `<div class="text-sm ${iPay ? 'text-amber-700' : 'text-blue-700'}">${iPay ? '你還要付' : '你還會收到'}</div>
+           <div class="text-2xl font-bold ${iPay ? 'text-amber-900' : 'text-blue-900'}">$${fmt(left)}</div>
+           ${left !== total ? `<div class="text-xs mt-0.5 ${iPay ? 'text-amber-700' : 'text-blue-700'}">共 $${fmt(total)}，${iPay ? '已付' : '已收'} $${fmt(total - left)}</div>` : ''}
+           ${!iPay && !(group.members.find(m => m.id === myId)?.payment_info || '').trim() ? '<div class="mt-2 text-sm text-amber-700">你尚未設定收款方式，對方看不到要轉到哪（在下方「收款設定」填寫）</div>' : ''}`}
+    </div>
+    <div class="px-4 divide-y ${iPay ? 'divide-amber-100' : 'divide-blue-100'}"></div>`;
+  const list = block.lastElementChild;
+  mine.forEach(t => {
+    const paid = isTransferPaid(t);
+    const other = iPay ? { id: t.to_id, name: t.to_name } : { id: t.from_id, name: t.from_name };
+    const [bg, text] = memberColor(other.name);
+    const payRows = iPay && t.payment_info && !paid ? parsePaymentInfo(t.payment_info) : [];
+    const row = document.createElement('div');
+    row.className = `py-3 ${paid ? 'opacity-70' : ''}`;
+    row.innerHTML = `
+      <div class="flex items-center gap-3">
+        <span class="w-9 h-9 rounded-full ${bg} ${text} flex items-center justify-center text-sm font-semibold flex-shrink-0">${esc([...other.name][0] || '?')}</span>
+        <span class="flex-1 min-w-0">
+          <span class="block font-semibold truncate ${paid ? 'text-gray-500' : 'text-gray-900'}">${esc(other.name)}</span>
+          <span class="block text-xs ${paid ? 'text-gray-400' : iPay ? 'text-amber-700' : 'text-blue-700'}">${paid ? (iPay ? '已付給他' : '已收到') : (iPay ? '你付給他' : '他付給你')}</span>
+        </span>
+        <span class="text-lg font-bold flex-shrink-0 ${paid ? 'text-gray-400 line-through' : iPay ? 'text-amber-800' : 'text-blue-800'}">$${fmt(t.amount)}</span>
+        ${transferToggleHtml(paid, iPay ? '標記已付' : '確認已收')}
+      </div>
+      ${iPay ? `<div class="pl-12">${payRowsHtml(t, payRows, paid, 'border-amber-100')}</div>` : ''}`;
+    bindPayCopy(row, payRows);
+    bindTransferToggle(row.querySelector('.transfer-toggle'), t);
+    list.appendChild(row);
+  });
+  container.appendChild(block);
+}
+
+// 其他人的轉帳：淡化、保留箭頭，不顯示帳號
+function renderOtherTransfers(container, others) {
+  if (!others.length) return;
+  const wrap = document.createElement('div');
+  wrap.className = 'mt-4';
+  wrap.innerHTML = `<div class="text-xs font-medium text-gray-400 tracking-wide mb-1.5">其他人的轉帳</div>
+    <div class="rounded-2xl bg-gray-50 border border-gray-100 divide-y divide-gray-100"></div>`;
+  const list = wrap.lastElementChild;
+  others.forEach(t => {
+    const paid = isTransferPaid(t);
+    const row = document.createElement('div');
+    row.className = `flex items-center justify-between gap-2 px-4 py-2.5 text-sm ${paid ? 'text-gray-400' : 'text-gray-600'}`;
+    row.innerHTML = `
+      <span class="min-w-0 truncate">${esc(t.from_name)} <span class="text-gray-400">→</span> ${esc(t.to_name)}</span>
+      <span class="flex items-center gap-2 flex-shrink-0">
+        <span class="font-semibold ${paid ? 'line-through' : ''}">$${fmt(t.amount)}</span>
+        ${transferToggleHtml(paid)}
+      </span>`;
+    bindTransferToggle(row.querySelector('.transfer-toggle'), t);
+    list.appendChild(row);
+  });
+  container.appendChild(wrap);
 }
 
 function renderSettlementHistory() {
@@ -1258,15 +1354,14 @@ document.getElementById('btn-save-settlement').addEventListener('click', async e
     if (!await showConfirm('確認結束此群組？結束後消費記錄將鎖定，可點「解除鎖定」繼續編輯。')) return;
     const transfers = calcSettlement();
     const prevAction = group.last_action;
-    if (transfers.length) {
-      group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
-    }
+    // 已平帳也存（空清單），否則鎖定後會讀到上一次結束時的舊結算
+    group.settlements.push({ id: uuid(), created_at: new Date().toISOString(), transfers });
     group.locked = true;
     group.last_action = { type: 'lock', actor: myName() };
     try {
       await saveGroup(group);
     } catch (err) {
-      if (transfers.length) group.settlements.pop();
+      group.settlements.pop();
       group.locked = false;
       group.last_action = prevAction;
       await handleSaveError(err);

@@ -18,6 +18,12 @@
 - 部署：Cloudflare Pages（push to main 自動部署）
 - 設計優先：Mobile-first
 
+## 結算規則（2026-09-28）
+- 各人淨額用**最大餘數法**取整（`calcBalances`）：合計仍為 0、每人誤差 < $1。不得改回付款人吸收或各自四捨五入（差額會集中到一人，隨機壓測可達 $5～6）
+- 結算頁、個人明細淨額、概覽卡「我應付」都由同一份轉帳推回（`myNet`），不要各自 `Math.round`
+- **已結束（locked）的群組讀 `settlements` 最後一筆快照，不重算**：大家照那份金額轉帳，`paid_transfers` 的 key 含金額，重算會讓已付標記失效。結束群組時已平帳也存空快照
+- 改取整或配對算法前，先模擬現有群組的 `paid_transfers` 會不會失效
+
 ## XSS 防護
 - `esc()` / `safeUrl()` 已集中在 `utils.js` 定義並 export（2026-06-01 資安修補），各模組 import，禁止 local 重複定義
 - `href` 動態插值必須套 `safeUrl()`
