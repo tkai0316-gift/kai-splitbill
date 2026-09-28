@@ -23,6 +23,7 @@
 - 結算頁、個人明細淨額、概覽卡「我應付」都由同一份轉帳推回（`myNet`），不要各自 `Math.round`
 - **已結束（locked）的群組讀 `settlements` 最後一筆快照，不重算**：大家照那份金額轉帳，`paid_transfers` 的 key 含金額，重算會讓已付標記失效。結束群組時已平帳也存空快照
 - 改取整或配對算法前，先模擬現有群組的 `paid_transfers` 會不會失效
+- 🔴 **kai-admin 後台 Excel 匯出有一份同算法副本**（`kai-admin/js/splitbill.js` 的 `calcSettlement`／`calcBalances`）：改這裡的取整、配對或快照規則，要同步改那邊
 
 ## XSS 防護
 - `esc()` / `safeUrl()` 已集中在 `utils.js` 定義並 export（2026-06-01 資安修補），各模組 import，禁止 local 重複定義
